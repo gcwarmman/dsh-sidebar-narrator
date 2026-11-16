@@ -1,0 +1,14 @@
+# 这是一个「要提交到另一个仓库」的文件，放在这里只是方便你自己复制。
+#
+# 提交位置：awesome-dsh-plugin 仓库里的 data/plugins/gcwarmman__dsh-sidebar-narrator.yml
+# 那个仓库地址：https://github.com/awesome-dsh-plugin/awesome-dsh-plugin
+#
+# 只提交这一个文件，不要改它的两个 README（那是脚本生成的）。
+
+url: https://github.com/gcwarmman/dsh-sidebar-narrator
+name: gcwarmman/dsh-sidebar-narrator
+category: ui
+description:
+  en: A right-sidebar narrator for DeepSeek Harness that says what the agent finished, is doing, and will do next, plus a read-only explain channel, a non-interrupting steer, and a stop that reports what it kept.
+  zh: 右侧栏三行话，说清它干完什么、在干什么、下一步干什么；另有只读提问、不打断的提醒、以及把代价讲清楚再喊停。
+icon: https://raw.githubusercontent.com/gcwarmman/dsh-sidebar-narrator/main/docs/icon.png

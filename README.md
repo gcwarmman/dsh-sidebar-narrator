@@ -137,8 +137,13 @@ DSH 工作的时候，主对话在滚，工具日志在刷，你根本看不出�
 插件是标准的 DSH bundle。源码目录：`D:\work\tagclear\dsh-sidekick-lens`；
 GitHub：<https://github.com/gcwarmman/dsh-sidebar-narrator>（包名仍是 `dsh-sidekick-lens`）。
 
+**你现在这台上已经装好了**，不用再装。下面这段是给「换一台机器」或「别人想装」用的。
+
 ```bash
-# 从本地目录装
+# 从 GitHub 装（推荐，别人用这条）
+dsh plugin --profile web add github:gcwarmman/dsh-sidebar-narrator
+
+# 或者从本地目录装
 plugin_manager action=install_bundle target="D:\work\tagclear\dsh-sidekick-lens"
 ```
 
@@ -194,8 +199,8 @@ README 是脚本生成的，**不要手改它**。除 YAML 之外还要满足：
 | --- | --- |
 | `package.json` 里有 `dsh.bundle` | ✅ |
 | 仓库里有真能跑的代码，不是占位 | ✅ `lib/` 三个源文件、64 项测试 |
-| 仓库创建满 1 天（CI 自动查） | ⬜ 待仓库建立满 1 天 |
-| 仓库加 `dsh-plugin` topic | ⬜ 需在 GitHub 仓库设置里手动加 |
+| 仓库创建满 1 天（CI 自动查） | ⬜ 仓库建于 2026-11-16 03:21 UTC，满 24 小时后才合格 |
+| 仓库加 `dsh-plugin` topic | ✅ 已加（另一并加了 `deepseek-harness`/`sidebar`/`observability`） |
 | 描述属实（维护者会读源码核对每个数字与 API 名） | ✅ 本文档每条都给了证据 |
 | 一个 PR 最多 3 条 | — |
 | 依赖必须指向原作者 | ✅ 无第三方运行时依赖 |
@@ -208,17 +213,21 @@ README 是脚本生成的，**不要手改它**。除 YAML 之外还要满足：
 "@deepseek-ai/dsh-client-ui-sidebar-right": ">=0.2.0-rc.2 || >=0.2.1-rc.2"
 ```
 
-剩下要做的：
+待提交的条目文件已经写好放在仓库里：`docs/catalog-entry.yml`，内容就是要提到
+awesome-dsh-plugin 的那一个 YAML，复制过去即可，不用自己拼。
 
-1. 在仓库设置里加 `dsh-plugin` topic。
-2. 可选但强烈建议：发 npm（`npm publish`），对方装的时候不用给构建脚本授权。
-   不发 npm 就得在 GitHub Release 挂预构建 `.tgz`，并在 YAML 里用 `tarball:` 指向它
-   （`latest/download/` 的资产名不能带版本号，否则下次发版 404）。
-3. 仓库满 1 天后去 awesome-dsh-plugin 提 PR。
+剩下要做的只有两步：
+
+1. **等仓库满 24 小时**（建于 2026-11-16 03:21 UTC），然后去
+   [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 提 PR，
+   只加 `data/plugins/gcwarmman__dsh-sidebar-narrator.yml` 一个文件。
+2. 可选但强烈建议：`npm publish` 发到 npm（包名 `dsh-sidekick-lens` 目前未被占用），
+   对方装的时候不用给构建脚本授权。不发 npm 就得在 GitHub Release 挂预构建 `.tgz`，
+   并在 YAML 里用 `tarball:` 指向它（`latest/download/` 的资产名不能带版本号，否则下次发版 404）。
 
 > YAML 描述里如果出现 `: `（冒号+空格），必须给整行加引号，否则解析失败。
-> 图标只收 GitHub 托管的位图（png/jpg/webp，约 96px 显示），**SVG 和第三方图床会被拒**——
-> 本仓库的 `icon.svg` 用不了，上架时要另传一张 png。
+> 图标只收 GitHub 托管的位图（png/jpg/webp，约 96px 显示），**SVG 和第三方图床会被拒**。
+> 本仓库已经备好 `docs/icon.png`（256×256，由 `icon.svg` 渲染），条目里直接指向它的 raw 地址即可。
 
 ### 手动验证清单
 
