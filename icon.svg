@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" role="img" aria-label="Sidekick lens">
+  <rect x="1" y="1" width="62" height="62" rx="15" fill="var(--dsw-alias-bg-layer-1)" stroke="var(--dsw-alias-border-l1)" stroke-width="2"/>
+  <circle cx="18" cy="22" r="4.2" fill="var(--dsw-alias-state-success-primary)"/>
+  <rect x="27" y="19.6" width="22" height="4.8" rx="2.4" fill="var(--dsw-alias-label-secondary)"/>
+  <circle cx="18" cy="32" r="4.2" fill="var(--dsw-alias-brand-primary)"/>
+  <rect x="27" y="29.6" width="16" height="4.8" rx="2.4" fill="var(--dsw-alias-label-primary)"/>
+  <circle cx="18" cy="42" r="4.2" fill="none" stroke="var(--dsw-alias-label-tertiary)" stroke-width="2"/>
+  <rect x="27" y="39.6" width="12" height="4.8" rx="2.4" fill="var(--dsw-alias-label-tertiary)"/>
+</svg>

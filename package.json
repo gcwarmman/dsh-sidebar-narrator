@@ -1,0 +1,91 @@
+{
+  "name": "dsh-sidekick-lens",
+  "version": "0.1.0",
+  "description": "A right-sidebar narrator for DeepSeek Harness: three plain-language lines on what the agent finished, is doing, and will do next — plus a read-only explain channel, a non-interrupting steer, and a stop that says what it kept.",
+  "type": "module",
+  "license": "MIT",
+  "author": "gcwarmman",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gcwarmman/dsh-sidebar-narrator.git"
+  },
+  "homepage": "https://github.com/gcwarmman/dsh-sidebar-narrator#readme",
+  "bugs": {
+    "url": "https://github.com/gcwarmman/dsh-sidebar-narrator/issues"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh",
+    "sidebar",
+    "narrator",
+    "observability",
+    "agent",
+    "ui"
+  ],
+  "icon": "icon.svg",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0",
+    "dsh": ">=0.2.0-rc.2 || >=0.2.1-rc.2"
+  },
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "lib/narrative.js",
+    "locale/zh.json",
+    "locale/en.json",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "screenshots.json",
+    "docs/panel.png",
+    "docs/icon.png"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
+    },
+    "compatibility": {
+      "dshReleases": {
+        "0.2.0-rc.2": "compatible",
+        "0.2.1-rc.2": "compatible"
+      }
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-client-ui-layout": ">=0.2.0-rc.2 || >=0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-locale": ">=0.2.0-rc.2 || >=0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-sidebar-right": ">=0.2.0-rc.2 || >=0.2.1-rc.2"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-client-ui-layout": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-locale": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-sidebar-right": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "test": "node test/narrative.test.mjs"
+  }
+}

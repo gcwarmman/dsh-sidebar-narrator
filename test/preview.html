@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<title>sidekick-lens preview</title>
+<style>
+:root {
+  --dsw-alias-bg-base: #16181c;
+  --dsw-alias-bg-layer-1: #1b1e23;
+  --dsw-alias-bg-layer-2: #23262c;
+  --dsw-alias-label-primary: #e8eaee;
+  --dsw-alias-label-secondary: #b6bcc6;
+  --dsw-alias-label-tertiary: #949ba6;
+  --dsw-alias-label-caption: #7d848f;
+  --dsw-alias-border-l1: #2c3038;
+  --dsw-alias-border-l2: #383d46;
+  --dsw-alias-interactive-bg-hover: #272b32;
+  --dsw-alias-state-success-primary: #4fa87a;
+  --dsw-alias-state-error-primary: #cf6b6b;
+  --dsw-alias-brand-primary: #6f9bd1;
+}
+html, body { margin: 0; padding: 0; height: 100%; background: var(--dsw-alias-bg-base); }
+body { display: flex; }
+#panel { width: 100%; height: 100%; }
+/* ===========================================================================
+侧写 · 常规主题
+安静的一张卡片：一盏状态灯、一条位置线、三行大白话、一块总账、三张门。
+只用 --dsw-alias-* 主题 token，跟随明暗主题；没有星野、极光、反应堆。
+动画只保留两处携带信息的：灯的呼吸（在跑时）与心跳波形（真实事件打点）。
+=========================================================================== */.skl {
+  --skl-accent: var(--dsw-alias-brand-primary);
+  --skl-hair: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent);
+  --skl-hair-2: color-mix(in srgb, var(--dsw-alias-label-primary) 15%, transparent);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  padding: 15px 15px 22px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-size: 12.5px;
+  line-height: 1.62;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-1);
+  container-type: inline-size;
+  -webkit-font-smoothing: antialiased;
+}
+
+.skl[data-light="blue"] { --skl-accent: #5b8fd0; }
+.skl[data-light="yellow"] { --skl-accent: #c08b3e; }
+.skl[data-light="cyan"] { --skl-accent: #3f9c94; }
+.skl[data-light="green"] { --skl-accent: var(--dsw-alias-state-success-primary); }
+.skl[data-light="red"] { --skl-accent: var(--dsw-alias-state-error-primary); }
+
+/* ---- 头：一盏灯 + 状态词 + 位置 ---- */
+.skl-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: none;
+  padding-bottom: 11px;
+  border-bottom: 1px solid var(--skl-hair);
+}
+
+.skl-light {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--skl-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--skl-accent) 18%, transparent);
+}
+
+.skl-light[data-pulse="true"] {
+  animation: skl-breathe 2.6s ease-in-out infinite;
+}
+
+.skl-head-text {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.skl-lightword {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skl-pos {
+  font-size: 11px;
+  color: var(--dsw-alias-label-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 保留节点但不画：位置感由「第 N / M 步」承担，不要第二条进度条 */
+.skl-progress { display: none; }
+
+/* ---- 心跳波形：真实事件打点，安静时压平 ---- */
+.skl-pulse {
+  position: relative;
+  height: 30px;
+  margin: 12px 0 2px;
+  flex: none;
+  overflow: hidden;
+}
+
+.skl-pulse .skl-wave {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.skl-wave-line {
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .85;
+}
+
+.skl-wave-area { opacity: .5; }
+
+.skl-wave-ghost {
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .18;
+}
+
+.skl-wave-head {
+  fill: var(--skl-accent);
+}
+
+.skl-pulse[data-running="false"] .skl-wave-line { opacity: .34; }
+.skl-pulse[data-running="false"] .skl-wave-area { opacity: .2; }
+
+/* ---- 三行 ---- */
+.skl-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 10px -6px 0;
+  flex: none;
+}
+
+.skl-row {
+  display: block;
+  width: 100%;
+  padding: 9px 6px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: background .18s ease;
+}
+
+.skl-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
+
+.skl-row:focus-visible {
+  outline: 2px solid var(--skl-accent);
+  outline-offset: -2px;
+}
+
+.skl-row-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.skl-row-label {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.skl-row-line {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.skl-row-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.skl-row[data-key="doing"] .skl-row-label { color: var(--dsw-alias-label-secondary); }
+
+.skl-row[data-key="doing"] .skl-row-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+.skl-row[data-key="done"] .skl-row-text { color: var(--dsw-alias-label-tertiary); }
+.skl-row[data-tone="muted"] .skl-row-text { color: var(--dsw-alias-label-tertiary); }
+
+.skl-reveal { display: inline; }
+.skl-ch { display: inline; white-space: pre-wrap; }
+
+/* ---- 来源徽标 ---- */
+.skl-src {
+  flex: none;
+  font-size: 10px;
+  line-height: 1.5;
+  padding: 0 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-caption);
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);
+}
+
+.skl-src[data-src="reported"] {
+  color: color-mix(in srgb, var(--skl-accent) 70%, var(--dsw-alias-label-secondary));
+  background: color-mix(in srgb, var(--skl-accent) 10%, transparent);
+}
+
+/* ---- 详情 ---- */
+.skl-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 2px;
+  padding: 0 0 0 10px;
+  border-left: 2px solid var(--skl-hair-2);
+}
+
+.skl-field {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.skl-field > b {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--dsw-alias-label-caption);
+}
+
+.skl-field > span {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* ---- 总账 ---- */
+.skl-ledger {
+  margin: 16px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--skl-hair);
+  flex: none;
+}
+
+.skl-ledger-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+  flex-wrap: wrap;
+}
+
+.skl-ledger-phase {
+  font-size: 11px;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--skl-accent) 72%, var(--dsw-alias-label-secondary));
+}
+
+.skl-ledger-todos {
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.skl-ledger-summary {
+  font-size: 12.5px;
+  line-height: 1.62;
+  color: var(--dsw-alias-label-primary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.skl-ledger-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 12px;
+  font-size: 11.5px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.skl-ledger-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.skl-ledger-item::before {
+  content: '';
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--skl-hair-2);
+}
+
+/* ---- 空状态 ---- */
+.skl-idle {
+  margin: 14px 0 0;
+  padding: 10px 11px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-layer-2);
+  overflow-wrap: anywhere;
+  flex: none;
+}
+
+/* ---- 三张门 ---- */
+.skl-door {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--skl-hair);
+  flex: none;
+}
+
+.skl-door-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.skl-door-title {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+.skl-door[data-door="ask"] .skl-door-title { color: var(--dsw-alias-label-secondary); }
+.skl-door[data-door="steer"] .skl-door-title { color: color-mix(in srgb, var(--dsw-alias-brand-primary) 82%, var(--dsw-alias-label-secondary)); }
+.skl-door[data-door="stop"] .skl-door-title { color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 84%, var(--dsw-alias-label-secondary)); }
+
+.skl-door-note {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-caption);
+  overflow-wrap: anywhere;
+}
+
+.skl-input-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.skl-input {
+  flex: 1 1 120px;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--skl-hair-2);
+  border-radius: 7px;
+  background: var(--dsw-alias-bg-base);
+  font: inherit;
+  font-size: 12px;
+  color: var(--dsw-alias-label-primary);
+  outline: none;
+  transition: border-color .18s ease;
+}
+
+.skl-input::placeholder { color: var(--dsw-alias-label-caption); }
+.skl-input:focus { border-color: var(--skl-accent); }
+
+.skl-btn {
+  flex: none;
+  padding: 5px 11px;
+  border: 1px solid var(--skl-hair-2);
+  border-radius: 7px;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  transition: color .18s ease, background .18s ease, border-color .18s ease;
+}
+
+.skl-btn:hover:not([disabled]) {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.skl-btn[disabled] { opacity: .4; cursor: default; }
+
+.skl-btn[data-tone="stop"] { color: var(--dsw-alias-state-error-primary); border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 30%, transparent); }
+.skl-btn[data-tone="stop"]:hover:not([disabled]) { background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); }
+
+.skl-btn[data-tone="stop"][data-armed="true"] {
+  color: var(--dsw-alias-bg-base);
+  background: var(--dsw-alias-state-error-primary);
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+/* ---- 回答 / 报告 / 提示 ---- */
+.skl-answer {
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-layer-2);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.skl-report {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.skl-report > div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.skl-report b {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--dsw-alias-label-caption);
+}
+
+.skl-report span {
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.skl-note {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-caption);
+  overflow-wrap: anywhere;
+}
+
+.skl-note[data-tone="bad"] { color: var(--dsw-alias-state-error-primary); }
+.skl-note[data-tone="good"] { color: var(--dsw-alias-state-success-primary); }
+
+/* ---- 窄栏 ---- */
+@container (max-width: 215px) {
+  .skl { padding: 13px 13px 20px; }
+  .skl-head { gap: 8px; }
+  .skl-head-text { gap: 4px; }
+  .skl-lightword { font-size: 12px; }
+  .skl-row-text { font-size: 12px; }
+  .skl-row[data-key="doing"] .skl-row-text { font-size: 13px; }
+  .skl-door-title { font-size: 12px; }
+}
+
+@keyframes skl-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .45; }
+}
+
+/* ---- 减少动效 ---- */
+@media (prefers-reduced-motion: reduce) {
+  .skl-light[data-pulse="true"],
+  .skl-ch {
+    animation: none !important;
+  }
+  .skl-row, .skl-btn, .skl-input { transition: none; }
+}
+.skl { height: 100%; }
+</style></head>
+<body><div id="panel">
+<div class="skl" data-light="cyan">
+  <div class="skl-head">
+    <span class="skl-light" data-light="cyan" data-pulse="true"></span>
+    <span class="skl-head-text">
+      <span class="skl-lightword">在跑或测</span>
+      <span class="skl-pos">第 80 / 80 步</span>
+    </span>
+  </div>
+  <div class="skl-progress"><i style="width:100%"></i></div>
+  <div class="skl-pulse" data-alive="false" data-running="true" aria-hidden="true">
+<svg class="skl-wave" viewBox="0 0 240 44" preserveAspectRatio="none" focusable="false">
+<defs>
+<linearGradient id="pw-fill" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0%" stop-color="currentColor" stop-opacity="0.42"/>
+<stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
+</linearGradient>
+<linearGradient id="pw-line" x1="0" y1="0" x2="1" y2="0">
+<stop offset="0%" stop-color="currentColor" stop-opacity="0.28"/>
+<stop offset="70%" stop-color="currentColor" stop-opacity="0.92"/>
+<stop offset="100%" stop-color="currentColor" stop-opacity="1"/>
+</linearGradient>
+</defs>
+<path class="skl-wave-area" d="M 0.00 39.60 Q 0.00 39.60 5.22 39.60 Q 10.43 39.60 15.65 39.60 Q 20.87 39.60 26.09 39.60 Q 31.30 39.60 36.52 39.60 Q 41.74 39.60 46.96 39.60 Q 52.17 39.60 57.39 39.60 Q 62.61 39.60 67.83 39.60 Q 73.04 39.60 78.26 39.60 Q 83.48 39.60 88.70 39.60 Q 93.91 39.60 99.13 39.60 Q 104.35 39.60 109.57 39.60 Q 114.78 39.60 120.00 39.60 Q 125.22 39.60 130.43 39.60 Q 135.65 39.60 140.87 39.60 Q 146.09 39.60 151.30 39.60 Q 156.52 39.60 161.74 39.60 Q 166.96 39.60 172.17 39.60 Q 177.39 39.60 182.61 39.60 Q 187.83 39.60 193.04 39.60 Q 198.26 39.60 203.48 39.60 Q 208.70 39.60 213.91 39.60 Q 219.13 39.60 224.35 39.60 Q 229.57 39.60 234.78 39.60 L 240.00 39.60 L 240 44 L 0 44 Z" fill="url(#pw-fill)" stroke="none"/>
+<path class="skl-wave-line" d="M 0.00 39.60 Q 0.00 39.60 5.22 39.60 Q 10.43 39.60 15.65 39.60 Q 20.87 39.60 26.09 39.60 Q 31.30 39.60 36.52 39.60 Q 41.74 39.60 46.96 39.60 Q 52.17 39.60 57.39 39.60 Q 62.61 39.60 67.83 39.60 Q 73.04 39.60 78.26 39.60 Q 83.48 39.60 88.70 39.60 Q 93.91 39.60 99.13 39.60 Q 104.35 39.60 109.57 39.60 Q 114.78 39.60 120.00 39.60 Q 125.22 39.60 130.43 39.60 Q 135.65 39.60 140.87 39.60 Q 146.09 39.60 151.30 39.60 Q 156.52 39.60 161.74 39.60 Q 166.96 39.60 172.17 39.60 Q 177.39 39.60 182.61 39.60 Q 187.83 39.60 193.04 39.60 Q 198.26 39.60 203.48 39.60 Q 208.70 39.60 213.91 39.60 Q 219.13 39.60 224.35 39.60 Q 229.57 39.60 234.78 39.60 L 240.00 39.60" fill="none" stroke="url(#pw-line)"/>
+
+</svg></div>
+  <div class="skl-rows">
+<button type="button" class="skl-row" data-key="done" data-tone="normal" aria-expanded="false" title="点一下展开">
+  <span class="skl-row-head">
+    <span class="skl-row-label">已完成</span>
+    <span class="skl-row-line">
+      <span class="skl-row-text">命令跑完了。</span>
+      <span class="skl-src" data-src="observed" title="来自真实的工具调用和结果">已观察到</span>
+    </span>
+  </span>
+</button>
+<button type="button" class="skl-row" data-key="doing" data-tone="normal" aria-expanded="false" title="点一下展开">
+  <span class="skl-row-head">
+    <span class="skl-row-label">正在做</span>
+    <span class="skl-row-line">
+      <span class="skl-row-text">在跑测试，确认改完没有碰坏别的。</span>
+      <span class="skl-src" data-src="observed" title="来自真实的工具调用和结果">已观察到</span>
+    </span>
+  </span>
+</button>
+<button type="button" class="skl-row" data-key="next" data-tone="muted" aria-expanded="false" title="点一下展开">
+  <span class="skl-row-head">
+    <span class="skl-row-label">下一步</span>
+    <span class="skl-row-line">
+      <span class="skl-row-text">把结果对一遍，再决定接着改哪里。</span>
+      <span class="skl-src" data-src="observed" title="来自真实的工具调用和结果">已观察到</span>
+    </span>
+  </span>
+</button></div>
+  
+<div class="skl-ledger">
+  <div class="skl-ledger-head">
+    <span class="skl-ledger-phase">验证结果</span>
+    
+  </div>
+  <div class="skl-ledger-summary">到目前为止：改了 7 个文件、看过 21 处代码、跑过 38 次命令。</div>
+  
+</div>
+  
+  
+<div class="skl-door" data-door="ask">
+  <div class="skl-door-head"><span class="skl-door-title">问解释助手</span></div>
+  <div class="skl-door-note">只看不碰：单独问模型，不会给主 agent 发消息，也不改它要做的事。</div>
+  <div class="skl-input-row">
+    <input class="skl-input" placeholder="这一步为什么这么做？它是不是卡住了？">
+    <button type="button" class="skl-btn">问</button>
+  </div>
+</div>
+  
+<div class="skl-door" data-door="steer">
+  <div class="skl-door-head"><span class="skl-door-title">告诉 Agent</span></div>
+  <div class="skl-door-note">不打断当前步骤：它做完手上这步，下一步才看得到。</div>
+  <div class="skl-input-row">
+    <input class="skl-input" placeholder="那个文件先别改，先看看配置。">
+    <button type="button" class="skl-btn">发提醒</button>
+  </div>
+</div>
+  <div class="skl-door" data-door="stop">
+    <div class="skl-door-head"><span class="skl-door-title">先停一下</span></div>
+    <div class="skl-door-note">打断后已完成的内容会保留，它会说明中止了什么。</div>
+    <div class="skl-input-row"><button type="button" class="skl-btn" data-tone="stop">先停一下</button></div>
+  </div>
+  
+</div>
+</div></body></html>
