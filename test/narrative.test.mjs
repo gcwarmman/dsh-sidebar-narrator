@@ -1215,3 +1215,27 @@ test('thinking: no space is left dangling before a Chinese comma', () => {
   const digest = thinkingDigest(state)
   assert.equal(/ 某个名字，/.test(digest), false, digest)
 })
+test('intent: a debug fragment never becomes the sentence the panel shows', () => {
+  assert.equal(intentOf('读得太早了点现在展开 after1: true de...'), '读得太早了点现在展开')
+  assert.equal(intentOf('OK.'), '')
+  assert.equal(intentOf('The panel is broken, I will fix it.'), '')
+})
+
+test('intent: an English-only line never becomes a Chinese panel row', () => {
+  assert.equal(intentOf('Now I will run the test suite.'), '')
+  assert.equal(intentOf('接下来改 lib/client.js 里的图片。'), '接下来改某个文件里的图片')
+})
+
+test('thinking: the panel drops ASCII debris, the explain door keeps English prose', () => {
+  const state = createLensState('session-test')
+  noteThinking(state, '读得太早了点现在展开 after1: true de...，接着看 after2。')
+  // Strict: what the panel is allowed to quote.
+  const strict = thinkingDigest(state, 'strict')
+  assert.equal(/[A-Za-z0-9]/.test(strict), false, strict)
+  // Loose: what the explain door may read. English is fine there.
+  const english = createLensState('session-test')
+  noteThinking(english, 'Let me check whether the digest carries the thinking line now.')
+  assert.match(thinkingDigest(english), /carries the thinking line/)
+  // The panel still refuses to quote that English thought.
+  assert.equal(thinkingClause(english), '')
+})
