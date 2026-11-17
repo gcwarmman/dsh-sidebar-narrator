@@ -755,8 +755,41 @@ test('progress: kind tallies survive steps that never produced a call', () => {
   assert.equal(state.tally.read, 1)
   const progress = buildProgress(state)
   assert.deepEqual(progress.items.map((item) => item.key), ['read'])
-  assert.match(buildSummary(state), /看过 1 处代码/)
+  // 读过的次数仍然算数，但用「还没动手，先看了几处」的说法讲，
+  // 而不是报「看过 N 处代码」这种只证明它在忙的指标。
+  assert.match(buildSummary(state), /还没动手，先看了 1 处代码/)
+  assert.doesNotMatch(buildSummary(state), /到目前为止：看过/)
 })
+test('progress: the summary reads like a changelog, not a debug log', () => {
+  // A long busy run: reads and commands pile up, two files change, one todo is left.
+  const view = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ...Array.from({ length: 9 }, (_, i) => step('read', { file_path: `D:\\w\\src\\m${i}.ts` }, T0 + 10 + i * 2)).flat(),
+    ...Array.from({ length: 7 }, (_, i) => step('bash', { command: 'node --test' }, T0 + 30 + i * 2)).flat(),
+    ...step('edit', { file_path: 'D:\\work\\tagclear\\lib\\client.ts' }, T0 + 50),
+    ...step('edit', { file_path: 'D:\\work\\tagclear\\lib\\narrative.ts' }, T0 + 60),
+    { type: 'todo/write', time: T0 + 70, data: { todos: [
+      { status: 'completed', text: '补图标' },
+      { status: 'pending', text: '优化摘要' },
+    ] } },
+  ], { now: T0 + 80 })
+  const summary = view.summary
+
+  // 开头说的是「做成了什么」，不是「忙了多少」。
+  assert.match(summary, /^到目前为止：动了 2 个文件/)
+  assert.doesNotMatch(summary, /^到目前为止：看过/)
+  assert.doesNotMatch(summary, /^到目前为止：跑过/)
+
+  // 结尾说的是「还差什么」，而且点得出那一件。
+  assert.match(summary, /还差「优化摘要」/)
+  assert.match(summary, /清单 1 \/ 2/)
+
+  // 忙碌指标仍然留在展开详情里，只是不再占据摘要。
+  const keys = view.progress.items.map((item) => item.key)
+  assert.deepEqual(keys.includes('read'), true)
+  assert.deepEqual(keys.includes('run'), true)
+})
+
 test('progress: a couple of touched files are named, not just counted', () => {
   const events = [
     { type: 'turn/start', time: T0, data: { turn: 1 } },
