@@ -155,6 +155,9 @@ GitHub：<https://github.com/gcwarmman/dsh-sidebar-narrator>（包名仍是 `dsh
 # 从 GitHub 装（推荐，别人用这条）
 dsh plugin --profile web add github:gcwarmman/dsh-sidebar-narrator
 
+# 或者用预构建包装（不需要构建授权，比从源码装更省事）
+dsh plugin --profile web add https://github.com/gcwarmman/dsh-sidebar-narrator/releases/latest/download/dsh-sidekick-lens.tgz
+
 # 或者从本地目录装
 plugin_manager action=install_bundle target="D:\work\tagclear\dsh-sidekick-lens"
 ```
@@ -168,13 +171,16 @@ plugin_manager action=install_bundle target="D:\work\tagclear\dsh-sidekick-lens"
 三种形态，按「对方有多怕麻烦」排序：
 
 ```bash
-# A. 发到 npm 之后（最省事，对方不需要构建授权）
+# A. 发到 npm 之后（最省事）
 dsh plugin --profile web add dsh-sidekick-lens
 
-# B. 直接从 GitHub 装
+# B. 用预构建的 .tgz（不需要发 npm 也能免构建授权）
+dsh plugin --profile web add https://github.com/gcwarmman/dsh-sidebar-narrator/releases/latest/download/dsh-sidekick-lens.tgz
+
+# C. 直接从 GitHub 装（会跑一次构建，市场里可能要你点「允许」）
 dsh plugin --profile web add github:gcwarmman/dsh-sidebar-narrator
 
-# C. 用本地目录 / 解包后的文件夹
+# D. 用本地目录 / 解包后的文件夹
 plugin_manager action=install_bundle target="D:\path\to\dsh-sidekick-lens"
 ```
 
@@ -211,7 +217,7 @@ README 是脚本生成的，**不要手改它**。除 YAML 之外还要满足：
 | --- | --- |
 | `package.json` 里有 `dsh.bundle` | ✅ |
 | 仓库里有真能跑的代码，不是占位 | ✅ `lib/` 三个源文件、67 项测试 |
-| 仓库创建满 1 天（CI 自动查） | ⬜ 仓库建于 2026-11-16 03:21 UTC，满 24 小时后才合格 |
+| 仓库创建满 1 天（CI 自动查） | ✅ 建于 2026-11-16 03:21 UTC，已满 24 小时 |
 | 仓库加 `dsh-plugin` topic | ✅ 已加（另一并加了 `deepseek-harness`/`sidebar`/`observability`） |
 | 描述属实（维护者会读源码核对每个数字与 API 名） | ✅ 本文档每条都给了证据 |
 | 一个 PR 最多 3 条 | — |
@@ -226,16 +232,23 @@ README 是脚本生成的，**不要手改它**。除 YAML 之外还要满足：
 ```
 
 待提交的条目文件已经写好放在仓库里：`docs/catalog-entry.yml`，内容就是要提到
-awesome-dsh-plugin 的那一个 YAML，复制过去即可，不用自己拼。
+awesome-dsh-plugin 的那一个 YAML，和已提交的 PR 完全一致。
 
-剩下要做的只有两步：
+**PR 已经提了**：[awesome-dsh-plugin#16192](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/16192)，
+只改一个文件，等维护者审。
 
-1. **等仓库满 24 小时**（建于 2026-11-16 03:21 UTC），然后去
-   [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 提 PR，
-   只加 `data/plugins/gcwarmman__dsh-sidebar-narrator.yml` 一个文件。
-2. 可选但强烈建议：`npm publish` 发到 npm（包名 `dsh-sidekick-lens` 目前未被占用），
-   对方装的时候不用给构建脚本授权。不发 npm 就得在 GitHub Release 挂预构建 `.tgz`，
-   并在 YAML 里用 `tarball:` 指向它（`latest/download/` 的资产名不能带版本号，否则下次发版 404）。
+剩余的两件事：
+
+1. **可选但强烈建议：发 npm。** 现在预构建的 `.tgz` 已经挂在
+   [Releases/v0.1.0](https://github.com/gcwarmman/dsh-sidebar-narrator/releases/tag/v0.1.0) 上，
+   `latest/download/dsh-sidekick-lens.tgz` 可用（已验证 200 / 97798 字节），条目里也用
+   `tarball:` 指了它 —— 所以**不发 npm 也能装、也不用给构建脚本授权**。
+   发 npm 只是多一条更短的安装命令：`dsh plugin --profile web add dsh-sidekick-lens`
+   （包名 `dsh-sidekick-lens` 目前未被占用）。
+2. 等 PR 合并后，市场会自带更新，别人搜「侧写」就能装。
+
+> 发版换 tarball 时：`latest/download/` 的资产名**不能带版本号**，否则下次发版 404。
+> 本仓库的资产名固定为 `dsh-sidekick-lens.tgz`，`package.json` 的版本号可以照常升。
 
 > YAML 描述里如果出现 `: `（冒号+空格），必须给整行加引号，否则解析失败。
 > 图标只收 GitHub 托管的位图（png/jpg/webp，约 96px 显示），**SVG 和第三方图床会被拒**。
