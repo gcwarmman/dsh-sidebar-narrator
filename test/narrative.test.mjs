@@ -1176,3 +1176,42 @@ test('digest: a repeated step is not listed twice', () => {
   const digest = buildDigest(state, { now: T0 + 30 })
   assert.equal(digest.split('\n').filter((line) => line === '- 跑完测试了。' || line.startsWith('- 命令跑完了')).length <= 1, true)
 })
+test('thinking: kebab-case package names never reach the panel', () => {
+  const state = createLensState('session-test')
+  noteThinking(state, '装的插件出现在引导页里 sidekick-lens，接下来要确认它排在什么位置。')
+  const digest = thinkingDigest(state)
+  assert.equal(/sidekick-lens/.test(digest), false, digest)
+  assert.match(digest, /某个名字/)
+  assert.match(digest, /接下来要确认它排在什么位置/, digest)
+})
+
+test('thinking: an ALL-CAPS file name is neutralised too', () => {
+  const state = createLensState('session-test')
+  noteThinking(state, '看看 dsh-sidebar-narrator 这个仓库的 README，再写条目。')
+  const digest = thinkingDigest(state)
+  assert.equal(/README/.test(digest), false, digest)
+  assert.equal(/dsh-sidebar-narrator/.test(digest), false, digest)
+})
+
+test('thinking: a path is swallowed whole, not one segment at a time', () => {
+  const state = createLensState('session-test')
+  noteThinking(state, '先读 src/components/my-widget.tsx 里的实现，然后改 login-page。')
+  const digest = thinkingDigest(state)
+  assert.equal(/(src\/|\.tsx)/.test(digest), false, digest)
+  assert.equal(/某个文件\/某个文件/.test(digest), false, digest)
+  assert.equal(/某个文件 某个文件/.test(digest), false, digest)
+})
+
+test('thinking: windows-style absolute paths collapse to one noun', () => {
+  const state = createLensState('session-test')
+  noteThinking(state, '在 C:/Users/edy/project/src/app.ts 里加了错误处理。')
+  const digest = thinkingDigest(state)
+  assert.equal(/(C:|\/Users\/|\.ts)/.test(digest), false, digest)
+})
+
+test('thinking: no space is left dangling before a Chinese comma', () => {
+  const state = createLensState('session-test')
+  noteThinking(state, '装的插件出现在引导页里 sidekick-lens，接下来要确认。')
+  const digest = thinkingDigest(state)
+  assert.equal(/ 某个名字，/.test(digest), false, digest)
+})
