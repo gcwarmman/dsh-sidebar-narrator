@@ -78,15 +78,17 @@ function rowHtml(row, open) {
   const tone = row.key === 'next' ? 'muted' : 'normal'
   const observed = row.source !== 'reported'
   return `
-<button type="button" class="skl-row" data-key="${escape(row.key)}" data-tone="${tone}" aria-expanded="${open}" title="${WORD.click}">
-  <span class="skl-row-head">
-    <span class="skl-row-label">${WORD[row.key]}</span>
-    <span class="skl-row-line">
-      <span class="skl-row-text">${escape(row.text)}</span>
-      <span class="skl-src" data-src="${observed ? 'observed' : 'reported'}" title="${observed ? '来自真实的工具调用和结果' : '只有它自己的说法，没有工具证据'}">${observed ? WORD.observed : WORD.reported}</span>
+<div class="skl-row-group" data-key="${escape(row.key)}">
+  <div role="button" tabindex="0" class="skl-row" data-key="${escape(row.key)}" data-tone="${tone}" data-open="${open}" aria-expanded="${open}" title="${WORD.click}">
+    <span class="skl-row-head">
+      <span class="skl-row-label">${WORD[row.key]}</span>
+      <span class="skl-row-line">
+        <span class="skl-row-text">${escape(row.text)}</span>
+        <span class="skl-src" data-src="${observed ? 'observed' : 'reported'}" title="${observed ? '来自真实的工具调用和结果' : '只有它自己的说法，没有工具证据'}">${observed ? WORD.observed : WORD.reported}</span>
+      </span>
     </span>
-  </span>
-</button>${open ? detailHtml(row.details) : ''}`
+  </div>${open ? detailHtml(row.details) : ''}
+</div>`
 }
 
 const PULSE_SLOTS = 24
@@ -230,6 +232,7 @@ ${extractCss()}
   ${pulseHtml(view)}
   <div class="skl-rows">${rows}</div>
   ${ledgerHtml(view)}
+  ${view.cancelNote == null || !view.cancelNote.text ? '' : `<div class="skl-cancelled">${escape(view.cancelNote.text)}</div>`}
   ${view.idle == null ? '' : `<div class="skl-idle">${escape(view.idle.text)}</div>`}
   ${doorHtml('ask', WORD.askTitle, WORD.askNote, '这一步为什么这么做？它是不是卡住了？', WORD.askCta)}
   ${doorHtml('steer', WORD.steerTitle, WORD.steerNote, '那个文件先别改，先看看配置。', WORD.steerCta)}

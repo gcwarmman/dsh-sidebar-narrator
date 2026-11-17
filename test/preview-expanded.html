@@ -153,6 +153,12 @@ body { display: flex; }
   flex: none;
 }
 
+.skl-row-group {
+  display: block;
+  border-radius: 8px;
+  transition: background .18s ease;
+}
+
 .skl-row {
   display: block;
   width: 100%;
@@ -240,7 +246,7 @@ body { display: flex; }
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin: 8px 0 2px;
+  margin: 0 6px 8px;
   padding: 0 0 0 10px;
   border-left: 2px solid var(--skl-hair-2);
 }
@@ -335,6 +341,20 @@ body { display: flex; }
   line-height: 1.6;
   color: var(--dsw-alias-label-secondary);
   background: var(--dsw-alias-bg-layer-2);
+  overflow-wrap: anywhere;
+  flex: none;
+}
+
+/* ---- 被叫停 ---- */
+.skl-cancelled {
+  margin: 12px 0 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border-left: 2px solid var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--dsw-alias-label-secondary);
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent);
   overflow-wrap: anywhere;
   flex: none;
 }
@@ -505,7 +525,7 @@ body { display: flex; }
     <span class="skl-light" data-light="cyan" data-pulse="true"></span>
     <span class="skl-head-text">
       <span class="skl-lightword">在跑或测</span>
-      <span class="skl-pos">第 80 / 80 步</span>
+      <span class="skl-pos">第 83 / 83 步</span>
     </span>
   </div>
   <div class="skl-progress"><i style="width:100%"></i></div>
@@ -527,42 +547,49 @@ body { display: flex; }
 
 </svg></div>
   <div class="skl-rows">
-<button type="button" class="skl-row" data-key="done" data-tone="normal" aria-expanded="true" title="点一下展开">
-  <span class="skl-row-head">
-    <span class="skl-row-label">已完成</span>
-    <span class="skl-row-line">
-      <span class="skl-row-text">命令跑完了。</span>
-      <span class="skl-src" data-src="observed" title="来自真实的工具调用和结果">已观察到</span>
+<div class="skl-row-group" data-key="done">
+  <div role="button" tabindex="0" class="skl-row" data-key="done" data-tone="normal" data-open="true" aria-expanded="true" title="点一下展开">
+    <span class="skl-row-head">
+      <span class="skl-row-label">已完成</span>
+      <span class="skl-row-line">
+        <span class="skl-row-text">改完了「preview」。</span>
+        <span class="skl-src" data-src="observed" title="来自真实的工具调用和结果">已观察到</span>
+      </span>
     </span>
-  </span>
-</button><div class="skl-detail"><div class="skl-field"><b>为什么做</b><span>跑一步操作</span></div><div class="skl-field"><b>看到了什么</b><span>第 79 步做完</span></div><div class="skl-field"><b>结果</b><span>跑通了，没有报错</span></div><div class="skl-field"><b>可以怎么调</b><span>测试卡太久，可以说“先跳过测试，回头补”。</span></div></div>
-<button type="button" class="skl-row" data-key="doing" data-tone="normal" aria-expanded="true" title="点一下展开">
-  <span class="skl-row-head">
-    <span class="skl-row-label">正在做</span>
-    <span class="skl-row-line">
-      <span class="skl-row-text">在跑测试，确认改完没有碰坏别的。</span>
-      <span class="skl-src" data-src="observed" title="来自真实的工具调用和结果">已观察到</span>
+  </div><div class="skl-detail"><div class="skl-field"><b>为什么做</b><span>把刚定下来的改动落进文件</span></div><div class="skl-field"><b>看到了什么</b><span>第 82 步做完，动的是 「preview」</span></div><div class="skl-field"><b>结果</b><span>改好了，没出岔子</span></div><div class="skl-field"><b>可以怎么调</b><span>不想动这个文件，直接说“这个先别改”。</span></div></div>
+</div>
+<div class="skl-row-group" data-key="doing">
+  <div role="button" tabindex="0" class="skl-row" data-key="doing" data-tone="normal" data-open="true" aria-expanded="true" title="点一下展开">
+    <span class="skl-row-head">
+      <span class="skl-row-label">正在做</span>
+      <span class="skl-row-line">
+        <span class="skl-row-text">在跑测试，确认改完没有碰坏别的。</span>
+        <span class="skl-src" data-src="observed" title="来自真实的工具调用和结果">已观察到</span>
+      </span>
     </span>
-  </span>
-</button><div class="skl-detail"><div class="skl-field"><b>为什么做</b><span>确认改完没有碰坏别的</span></div><div class="skl-field"><b>看到了什么</b><span>正在用「敲命令」这一类动作</span></div><div class="skl-field"><b>结果</b><span>还没出结果</span></div><div class="skl-field"><b>可以怎么调</b><span>测试卡太久，可以说“先跳过测试，回头补”。</span></div></div>
-<button type="button" class="skl-row" data-key="next" data-tone="muted" aria-expanded="true" title="点一下展开">
-  <span class="skl-row-head">
-    <span class="skl-row-label">下一步</span>
-    <span class="skl-row-line">
-      <span class="skl-row-text">把结果对一遍，再决定接着改哪里。</span>
-      <span class="skl-src" data-src="observed" title="来自真实的工具调用和结果">已观察到</span>
+  </div><div class="skl-detail"><div class="skl-field"><b>为什么做</b><span>确认改完没有碰坏别的</span></div><div class="skl-field"><b>看到了什么</b><span>正在用「敲命令」这一类动作</span></div><div class="skl-field"><b>结果</b><span>还没出结果</span></div><div class="skl-field"><b>可以怎么调</b><span>测试卡太久，可以说“先跳过测试，回头补”。</span></div></div>
+</div>
+<div class="skl-row-group" data-key="next">
+  <div role="button" tabindex="0" class="skl-row" data-key="next" data-tone="muted" data-open="true" aria-expanded="true" title="点一下展开">
+    <span class="skl-row-head">
+      <span class="skl-row-label">下一步</span>
+      <span class="skl-row-line">
+        <span class="skl-row-text">把结果对一遍，再决定接着改哪里。</span>
+        <span class="skl-src" data-src="observed" title="来自真实的工具调用和结果">已观察到</span>
+      </span>
     </span>
-  </span>
-</button><div class="skl-detail"><div class="skl-field"><b>为什么做</b><span>跑完总要看结果</span></div><div class="skl-field"><b>看到了什么</b><span>刚才在跑东西</span></div><div class="skl-field"><b>可以怎么调</b><span>结果不对可以直说哪里不对。</span></div></div></div>
+  </div><div class="skl-detail"><div class="skl-field"><b>为什么做</b><span>跑完总要看结果</span></div><div class="skl-field"><b>看到了什么</b><span>刚才在跑东西</span></div><div class="skl-field"><b>可以怎么调</b><span>结果不对可以直说哪里不对。</span></div></div>
+</div></div>
   
 <div class="skl-ledger">
   <div class="skl-ledger-head">
     <span class="skl-ledger-phase">验证结果</span>
     
   </div>
-  <div class="skl-ledger-summary">到目前为止：改了 7 个文件、看过 21 处代码、跑过 38 次命令。</div>
+  <div class="skl-ledger-summary">到目前为止：改了 4 个文件、看过 32 处代码、跑过 36 次命令。</div>
   
 </div>
+  
   
   
 <div class="skl-door" data-door="ask">

@@ -888,3 +888,48 @@ test('explainPrompt: the digest goes last, inside a delimiter', () => {
   assert.equal(prompt.slice(at).endsWith('</digest>'), true)
   assert.equal(prompt.includes('<digest>'), true)
 })
+
+// ---------------------------------------------------------------------------
+// What a click on a row is allowed to reveal.
+// ---------------------------------------------------------------------------
+
+test('every row carries something to show when it is opened', () => {
+  // Found live: the detail block lived inside a <button>, the parser hoisted it
+  // out, and clicking a row expanded into nothing. The markup is fixed, but the
+  // payload has to hold up its end too — a row with no detail is a dead click.
+  const events = [
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ...step('read', { file_path: 'D:\\work\\tagclear\\lib\\client.js' }, T0 + 10),
+    ...step('edit', { file_path: 'D:\\work\\tagclear\\lib\\index.js' }, T0 + 20),
+    ...step('bash', { command: 'node --test' }, T0 + 30),
+  ]
+  const state = createLensState('session-detail')
+  for (const event of events) applySessionEvent(state, event, event.time)
+  const view = buildView(state, T0 + 40)
+  assert.equal(view.rows.length >= 2, true)
+  for (const row of view.rows) {
+    const details = row.details ?? {}
+    const filled = ['why', 'saw', 'result', 'adjust'].filter(
+      (key) => typeof details[key] === 'string' && details[key] !== '',
+    )
+    assert.equal(filled.length >= 1, true, `row ${row.key} has nothing to expand`)
+  }
+})
+
+test('a stopped turn says what survived it, in a field the panel can render', () => {
+  // Found live: the host computed cancelNote and the panel never showed it, so a
+  // user who pressed 先停一下 got silence instead of the promised report.
+  const events = [
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ...step('bash', { command: 'node --test' }, T0 + 10),
+    { type: 'turn/end', time: T0 + 20, data: { turn: 1, reason: { kind: 'aborted', reason: { kind: 'user' } } } },
+  ]
+  const state = createLensState('session-abort')
+  for (const event of events) applySessionEvent(state, event, event.time)
+  const view = buildView(state, T0 + 30)
+  assert.notEqual(view.cancelNote, null)
+  assert.equal(typeof view.cancelNote.text, 'string')
+  assert.match(view.cancelNote.text, /叫停|停/)
+  // It must not claim work that never happened.
+  assert.match(view.cancelNote.text, /0 个文件|留着/)
+})
