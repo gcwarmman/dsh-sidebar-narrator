@@ -25,8 +25,12 @@ import {
   humanError,
   humanTool,
   quietMs,
+  reasoningOfContent,
   repeats,
+  thinkingClause,
+  thinkingDigest,
   intentOf,
+  noteThinking,
   lightOf,
   looksForward,
   pastTense,
@@ -965,4 +969,210 @@ test('a stopped turn says what survived it, in a field the panel can render', ()
   assert.match(view.cancelNote.text, /叫停|停/)
   // It must not claim work that never happened.
   assert.match(view.cancelNote.text, /0 个文件|留着/)
+})
+// ---------------------------------------------------------------------------
+// 思维链：读得到的思路，不是猜出来的思路
+// ---------------------------------------------------------------------------
+
+/** One step whose assistant message carries a reasoning block. */
+function stepWithThinking(thinking, name, args, at) {
+  return [
+    { type: 'step/start', time: at, data: { turn: 1, step: 1 } },
+    {
+      type: 'assistant/message',
+      time: at + 1,
+      data: { turn: 1, step: 1, message: { content: [{ type: 'reasoning', text: thinking }] } },
+    },
+    { type: 'tool/call', time: at + 2, data: { turn: 1, step: 1, callId: `c-${at}`, name, arguments: JSON.stringify(args) } },
+    { type: 'tool/result', time: at + 7, data: { turn: 1, step: 1, message: { isError: false }, error: null } },
+  ]
+}
+
+test('thinking: a reasoning block reaches the digest, labelled as report not evidence', () => {
+  const events = [
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ...stepWithThinking('用户要的是先确认配置对不对，我得先去读一下那个配置文件。', 'read', { file_path: 'a.ts' }, T0 + 10),
+  ]
+  const state = createLensState('session-test')
+  for (const event of events) applySessionEvent(state, event, event.time)
+  const digest = buildDigest(state, { now: T0 + 20 })
+  assert.match(digest, /它心里正在盘算：/)
+  assert.match(digest, /配置/)
+  // It must sit in the reported half: nothing in the tool record proves a thought.
+  const reportedAt = digest.indexOf('【仅据汇报】')
+  assert.ok(reportedAt > 0)
+  assert.ok(digest.indexOf('它心里正在盘算：') > reportedAt)
+})
+
+test('thinking: the live stream is folded in too, not only the durable record', () => {
+  const state = createLensState('session-test')
+  applyStream(state, { chunk: { type: 'reasoning-delta', text: '先看看它是不是把顺序搞反了，' } }, T0)
+  applyStream(state, { chunk: { type: 'reasoning-delta', text: '如果反了就得把两步对调。' } }, T0 + 1)
+  assert.match(thinkingDigest(state), /顺序搞反/)
+  assert.match(thinkingDigest(state), /对调/)
+})
+
+test('thinking: only the tail is kept, because the end is the decision', () => {
+  const state = createLensState('session-test')
+  noteThinking(state, 'A'.repeat(2000))
+  // The buffer is capped, so 2000 characters of filler already lost their front.
+  assert.equal(state.thinking.length, 1200)
+  const before = state.thinking.length
+  noteThinking(state, '接下来去改登录页的跳转。')
+  // Still capped, and the newest text is what survived.
+  assert.equal(state.thinking.length, 1200)
+  assert.equal(state.thinking.length, before)
+  assert.match(state.thinking, /接下来去改登录页的跳转/)
+  assert.ok(!state.thinking.endsWith('A'))
+})
+
+test('thinking: a step boundary clears the previous step reasoning', () => {
+  const state = createLensState('session-test')
+  applySessionEvent(state, { type: 'turn/start', time: T0, data: { turn: 1 } }, T0)
+  applySessionEvent(
+    state,
+    { type: 'assistant/message', time: T0 + 1, data: { turn: 1, step: 1, message: { content: [{ type: 'reasoning', text: '先读配置确认默认值。' }] } } },
+    T0 + 1,
+  )
+  assert.match(state.thinking, /先读配置/)
+  applySessionEvent(state, { type: 'step/start', time: T0 + 2, data: { turn: 1, step: 2 } }, T0 + 2)
+  assert.equal(state.thinking, '')
+})
+
+test('thinking: reasoning is never mistaken for what the agent said out loud', () => {
+  const content = [
+    { type: 'reasoning', text: '内心话：也许该换个办法。' },
+    { type: 'text', text: '我把配置改好了。' },
+  ]
+  assert.equal(textOfContent(content), '我把配置改好了。')
+  assert.equal(reasoningOfContent(content), '内心话：也许该换个办法。')
+  assert.equal(reasoningOfContent([{ type: 'text', text: 'x' }]), '')
+})
+
+test('thinking: 正在做 quotes the thought instead of shrugging', () => {
+  const state = createLensState('session-test')
+  applyAgentStatus(state, 'running', T0)
+  applySessionEvent(state, { type: 'turn/start', time: T0, data: { turn: 1 } }, T0)
+  applySessionEvent(
+    state,
+    { type: 'assistant/message', time: T0 + 1, data: { turn: 1, step: 1, message: { content: [{ type: 'reasoning', text: '这里得先确认外面那一步通不通，不然改了也白改。' }] } } },
+    T0 + 1,
+  )
+  const view = buildView(state, T0 + 2, {})
+  const doing = view.rows.find((row) => row.key === 'doing')
+  assert.ok(doing)
+  assert.doesNotMatch(doing.text, /在想下一步做什么/)
+  assert.match(doing.text, /确认外面那一步/)
+  // A thought is still only a claim: no tool call has confirmed it.
+  assert.equal(doing.source, 'reported')
+})
+
+test('thinking: 下一步 prefers the thought over the template', () => {
+  const state = createLensState('session-test')
+  applyAgentStatus(state, 'running', T0)
+  applySessionEvent(state, { type: 'turn/start', time: T0, data: { turn: 1 } }, T0)
+  applySessionEvent(
+    state,
+    { type: 'assistant/message', time: T0 + 1, data: { turn: 1, step: 1, message: { content: [{ type: 'reasoning', text: '先读一下预览脚本，接下来要把预览重新生成一遍，看看窄栏下的效果。' }] } } },
+    T0 + 1,
+  )
+  // A tool call is in flight, so 正在做 describes the tool and 下一步 is free to
+  // quote the thought. Without the call both rows would quote it and the
+  // de-duplicator would (correctly) replace 下一步 with a template.
+  applySessionEvent(
+    state,
+    { type: 'tool/call', time: T0 + 2, data: { turn: 1, step: 1, callId: 'c1', name: 'read', arguments: JSON.stringify({ file_path: 'preview.mjs' }) } },
+    T0 + 2,
+  )
+  const view = buildView(state, T0 + 3, {})
+  const next = view.rows.find((row) => row.key === 'next')
+  assert.match(next.text, /预览重新生成|窄栏/)
+  assert.equal(next.source, 'reported')
+})
+
+test('thinking: a thought never fills both rows at once', () => {
+  const state = createLensState('session-test')
+  applyAgentStatus(state, 'running', T0)
+  applySessionEvent(state, { type: 'turn/start', time: T0, data: { turn: 1 } }, T0)
+  applySessionEvent(
+    state,
+    { type: 'assistant/message', time: T0 + 1, data: { turn: 1, step: 1, message: { content: [{ type: 'reasoning', text: '接下来要把预览重新生成一遍，看看窄栏下的效果。' }] } } },
+    T0 + 1,
+  )
+  const view = buildView(state, T0 + 2, {})
+  const doing = view.rows.find((row) => row.key === 'doing')
+  const next = view.rows.find((row) => row.key === 'next')
+  assert.match(doing.text, /预览重新生成/)
+  assert.equal(repeats(doing.text, next.text), false)
+})
+
+test('thinking: with no thinking at all, the row still admits it is guessing', () => {
+  const state = createLensState('session-test')
+  applyAgentStatus(state, 'running', T0)
+  applySessionEvent(state, { type: 'turn/start', time: T0, data: { turn: 1 } }, T0)
+  const view = buildView(state, T0 + 1, {})
+  const doing = view.rows.find((row) => row.key === 'doing')
+  assert.equal(doing.text, '在想下一步做什么。')
+})
+
+test('thinking: machine noise inside a thought never reaches the panel', () => {
+  const state = createLensState('session-test')
+  applyAgentStatus(state, 'running', T0)
+  applySessionEvent(state, { type: 'turn/start', time: T0, data: { turn: 1 } }, T0)
+  applySessionEvent(
+    state,
+    { type: 'assistant/message', time: T0 + 1, data: { turn: 1, step: 1, message: { content: [{ type: 'reasoning', text: '得调用 read_file 读 D:\\work\\x\\y.ts，然后看看 src/auth/login.tsx 里的跳转。' }] } } },
+    T0 + 1,
+  )
+  const view = buildView(state, T0 + 2, {})
+  const doing = view.rows.find((row) => row.key === 'doing')
+  assert.equal(/read_file|\\|tagclear|login\.tsx/.test(doing.text), false)
+})
+test('digest: the summary prefix is never doubled', () => {
+  const events = [
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ...step('edit', { file_path: 'D:\\work\\tagclear\\lib\\a.js' }, T0 + 10),
+  ]
+  const state = createLensState('session-test')
+  for (const event of events) applySessionEvent(state, event, event.time)
+  const digest = buildDigest(state, { now: T0 + 20 })
+  // buildSummary already opens with 到目前为止：; the digest used to add another.
+  assert.equal(digest.includes('到目前为止：到目前为止'), false)
+  assert.match(digest, /到目前为止：动了 1 个文件/)
+})
+test('thinking: English-only reasoning never becomes Chinese panel copy', () => {
+  const state = createLensState('session-test')
+  applyAgentStatus(state, 'running', T0)
+  applySessionEvent(state, { type: 'turn/start', time: T0, data: { turn: 1 } }, T0)
+  applySessionEvent(
+    state,
+    {
+      type: 'assistant/message',
+      time: T0 + 1,
+      data: {
+        turn: 1,
+        step: 1,
+        message: { content: [{ type: 'reasoning', text: 'Let me check whether the digest actually carries the thinking line now.' }] },
+      },
+    },
+    T0 + 1,
+  )
+  const view = buildView(state, T0 + 2, {})
+  // The panel is Chinese-only: an English thought must not be quoted there.
+  assert.equal(thinkingClause(state), '')
+  assert.equal(view.rows.find((row) => row.key === 'doing').text, '在想下一步做什么。')
+  // The explain door can read it, and it is still the only clue available.
+  assert.match(buildDigest(state, { now: T0 + 2 }), /carries the thinking line/)
+})
+
+test('digest: a repeated step is not listed twice', () => {
+  const events = [
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ...step('bash', { command: 'curl' }, T0 + 10),
+    ...step('bash', { command: 'curl' }, T0 + 20),
+  ]
+  const state = createLensState('session-test')
+  for (const event of events) applySessionEvent(state, event, event.time)
+  const digest = buildDigest(state, { now: T0 + 30 })
+  assert.equal(digest.split('\n').filter((line) => line === '- 跑完测试了。' || line.startsWith('- 命令跑完了')).length <= 1, true)
 })
