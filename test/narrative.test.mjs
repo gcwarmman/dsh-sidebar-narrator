@@ -20,6 +20,7 @@ import {
   createLensState,
   cut,
   describeCall,
+  englishAction,
   explainPrompt,
   humanElapsed,
   humanError,
@@ -411,8 +412,14 @@ test('acceptance: the next row comes from the todo list when one is pending', ()
     { type: 'todo/write', time: T0 + 50, data: { todos: [{ status: 'pending', text: '补一个边界测试' }] } },
   ])
   const next = view.rows.find((row) => row.key === 'next')
-  assert.equal(next.text, '补一个边界测试')
+  // The queue item is still the answer — it just no longer prints as a bare
+  // fragment. A row made of nothing but the item reads like a label; saying what
+  // it means keeps the row a sentence while still naming the same todo.
+  assert.match(next.text, /补一个边界测试/)
+  assert.match(next.text, /下一件是/)
   assert.equal(next.source, 'observed')
+  // And it has to agree with the ledger rather than telling its own story.
+  assert.match(view.summary, /补一个边界测试/)
 })
 
 test('acceptance: a reported-only claim is tagged as such', () => {
@@ -1160,9 +1167,43 @@ test('thinking: English-only reasoning never becomes Chinese panel copy', () => 
   const view = buildView(state, T0 + 2, {})
   // The panel is Chinese-only: an English thought must not be quoted there.
   assert.equal(thinkingClause(state), '')
-  assert.equal(view.rows.find((row) => row.key === 'doing').text, '在想下一步做什么。')
+  const doing = view.rows.find((row) => row.key === 'doing')
+  assert.equal(/[A-Za-z]{3,}/.test(doing.text), false, `English leaked: ${doing.text}`)
+  // But it is not allowed to shrug either: the action is readable even in English,
+  // so the row says what it is about instead of falling to the template.
+  assert.match(doing.text, /在(看|找|改|跑|发|掂量|盯)/)
+  assert.notEqual(doing.text, '在想下一步做什么。')
   // The explain door can read it, and it is still the only clue available.
   assert.match(buildDigest(state, { now: T0 + 2 }), /carries the thinking line/)
+})
+
+test('thinking: an English thought is read for its action, not ignored', () => {
+  const read = createLensState('s1')
+  noteThinking(read, ' Let me read the narrative file to confirm the merge logic.')
+  assert.equal(englishAction(read), '看文件')
+
+  const write = createLensState('s2')
+  noteThinking(write, ' I will update the test for the new panel behaviour.')
+  assert.equal(englishAction(write), '改测试')
+
+  const run = createLensState('s3')
+  noteThinking(run, ' Now run the test suite to check nothing broke.')
+  assert.equal(englishAction(run), '跑测试')
+
+  // A thought that names only an object still beats a shrug.
+  const onlyObject = createLensState('s4')
+  noteThinking(onlyObject, ' The README needs to mention this.')
+  assert.equal(englishAction(onlyObject), '盯文档')
+
+  // Nothing recognisable: better to say nothing and let the template admit it.
+  const mute = createLensState('s5')
+  noteThinking(mute, ' Hmm. Okay.')
+  assert.equal(englishAction(mute), '')
+
+  // Chinese thoughts are thinkingClause's job; this must not double-read them.
+  const chinese = createLensState('s6')
+  noteThinking(chinese, '接下来去看登录页的跳转逻辑。')
+  assert.equal(englishAction(chinese), '')
 })
 
 test('digest: a repeated step is not listed twice', () => {
@@ -1238,4 +1279,109 @@ test('thinking: the panel drops ASCII debris, the explain door keeps English pro
   assert.match(thinkingDigest(english), /carries the thinking line/)
   // The panel still refuses to quote that English thought.
   assert.equal(thinkingClause(english), '')
+})
+
+// ---------------------------------------------------------------------------
+// 三行不许退化成模板：它们必须是对此刻的读数，且必须读同一份账
+// ---------------------------------------------------------------------------
+
+test('rows: a whole working session never falls back to the placeholder sentence', () => {
+  // A real replay showed 28% of frames saying 「在想下一步做什么」 — the panel
+  // admitting it could see nothing. Anything that reintroduces a fixed sentence
+  // as the common case should fail here.
+  const events = [{ type: 'turn/start', time: T0, data: { turn: 1 } }]
+  for (let i = 0; i < 12; i += 1) {
+    const at = T0 + 100 + i * 40
+    events.push(...step('read', { file_path: `D:\\work\\proj\\m${i}.ts` }, at))
+    events.push(...step('edit', { file_path: `D:\\work\\proj\\m${i}.ts` }, at + 20))
+  }
+  events.push(...step('bash', { command: 'node --test' }, T0 + 900))
+  const texts = new Set()
+  for (let i = 0; i < 40; i += 1) {
+    const cut = events.filter((event) => event.time <= T0 + 100 + i * 25)
+    if (cut.length === 0) continue
+    const view = replay(cut, { now: T0 + 100 + i * 25 })
+    const doing = view.rows.find((row) => row.key === 'doing')
+    if (doing !== undefined) texts.add(doing.text)
+  }
+  assert.equal(texts.has('在想下一步做什么。'), false, [...texts].join(' | '))
+  assert.equal(texts.size > 3, true, `only ${texts.size} distinct readings`)
+})
+
+test('rows: the next row and the summary name the same queue item', () => {
+  // Two readings of one moment must not disagree: if the ledger says the next
+  // item is X, the row above cannot promise Y.
+  const events = [
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ...step('read', { file_path: 'D:\\work\\proj\\a.ts' }, T0 + 10),
+    { type: 'todo/write', time: T0 + 20, data: { todos: [
+      { status: 'completed', text: '搭骨架' },
+      { status: 'pending', text: '补边界测试' },
+      { status: 'pending', text: '写说明' },
+    ] } },
+  ]
+  const view = replay(events, { now: T0 + 30 })
+  const next = view.rows.find((row) => row.key === 'next')
+  assert.match(next.text, /补边界测试/)
+  assert.match(view.summary, /补边界测试/)
+  // And it says how much is left, so the row changes as the queue drains.
+  assert.match(next.text, /2 件/)
+})
+
+test('progress: a placeholder is never listed as a file name', () => {
+  // desensitize() replaces names it will not print with 「某个文件」. If that word
+  // reaches the ledger the summary reads 「动了 2 个文件（旁白逻辑、某个文件）」.
+  const events = [
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ...step('read', { file_path: 'D:\\work\\proj\\narrative.js' }, T0 + 10),
+    ...step('edit', { file_path: 'D:\\work\\proj\\narrative.js' }, T0 + 20),
+    ...step('edit', { file_path: 'D:\\work\\proj\\opaque-1a2b3c4d.mjs' }, T0 + 30),
+  ]
+  const view = replay(events, { now: T0 + 40 })
+  assert.equal(view.progress.touched.includes('某个文件'), false, view.progress.touched.join(','))
+  // The count still counts it: an unnamed file did change.
+  assert.equal(view.progress.files, 2)
+  // And when the names cannot account for the count, none are listed at all.
+  assert.doesNotMatch(view.summary, /个文件（/)
+})
+
+test('rows: a nested quote never leaks into the sentence', () => {
+  const events = [
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ...step('read', { file_path: 'D:\\work\\proj\\narrative.js' }, T0 + 10),
+  ]
+  const view = replay(events, { now: T0 + 20 })
+  for (const row of view.rows) {
+    const opens = (row.text.match(/「/g) ?? []).length
+    const closes = (row.text.match(/」/g) ?? []).length
+    assert.equal(opens, closes, row.text)
+  }
+})
+test('rows: naming the same file in both rows is not the same sentence', () => {
+  // The old overlap test compared raw wording, so two lines that both mentioned
+  // the login page were treated as duplicates and one of them was flattened into
+  // a generic sentence. They are in fact the two things the reader needs.
+  const events = [
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ...step('read', { file_path: 'src/auth/login.tsx' }, T0 + 10),
+    { type: 'step/start', time: T0 + 30, data: { turn: 1, step: 2 } },
+  ]
+  const view = replay(events, { now: T0 + 31 })
+  const next = view.rows.find((row) => row.key === 'next')
+  const doing = view.rows.find((row) => row.key === 'doing')
+  assert.match(next.text, /看出来的问题改掉/, next.text)
+  assert.doesNotMatch(next.text, /等这一步的结果出来再定/, '下一步 collapsed into a template')
+  assert.doesNotMatch(doing.text, /上一步做完了/, '正在做 collapsed into a template')
+})
+
+test('rows: a gap sentence never doubles the past tense', () => {
+  // `刚` already puts the sentence in the past, so 「刚看过了」 reads as a stutter.
+  const events = [
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ...step('read', { file_path: 'src/auth/login.tsx' }, T0 + 10),
+    { type: 'step/start', time: T0 + 30, data: { turn: 1, step: 2 } },
+  ]
+  const view = replay(events, { now: T0 + 31 })
+  const doing = view.rows.find((row) => row.key === 'doing')
+  assert.doesNotMatch(doing.text, /刚[^，]*过了/, doing.text)
 })
