@@ -217,7 +217,7 @@ README 是脚本生成的，**不要手改它**。除 YAML 之外还要满足：
 | 要求 | 本仓库状态 |
 | --- | --- |
 | `package.json` 里有 `dsh.bundle` | ✅ |
-| 仓库里有真能跑的代码，不是占位 | ✅ `lib/` 三个源文件、80 项测试 |
+| 仓库里有真能跑的代码，不是占位 | ✅ `lib/` 三个源文件、88 项测试 |
 | 仓库创建满 1 天（CI 自动查） | ✅ 建于 2026-11-16 03:21 UTC，已满 24 小时 |
 | 仓库加 `dsh-plugin` topic | ✅ 已加（另一并加了 `deepseek-harness`/`sidebar`/`observability`） |
 | 描述属实（维护者会读源码核对每个数字与 API 名） | ✅ 本文档每条都给了证据 |
@@ -278,7 +278,7 @@ cd D:\work\tagclear\dsh-sidekick-lens
 "C:\Program Files\nodejs\node.exe" test/narrative.test.mjs
 ```
 
-80 项，覆盖上面 1–11 的全部场景 + 语言层单测 + 直播里踩出来的回归（见下）。
+88 项，覆盖上面 1–11 的全部场景 + 语言层单测 + 直播里踩出来的回归（见下）。
 > Windows 沙箱下 `node --test test/` 会因为子进程 `spawn EPERM` 失败，直接跑测试文件本体即可。
 > 用管道接 `node` 的输出（`| Select-Object`、`2>&1 | Select-String`）也会报「拒绝访问」，别接管道。
 
@@ -339,6 +339,8 @@ $env:DSH_SESSION_ID = 'session-xxx'
 | 重载后明明在跑却显示**绿灯、没在动** | `agent/status` 只在变化时发，不重放 | 播种时直接问 `agent.status` |
 | 读文件之后说**办完了一件事** | 本 harness 的读工具叫 `read`，不在读表里 | 把 `read` 等本机常用工具补进分类表 |
 | **在跑测试，</mcp 现在重新…** | 工具协议残留进了意图句子 | scrub 剥掉 `<...>` 与 ```` ``` ```` |
+| **正在做 → 在琢磨：读得太早了点现在展开 after1: true** | 意图句只过 `scrub`、没过屏蔽，英文调试碎片原样上屏 | `intentOf()` 补 `desensitize()`；残留 ASCII 一律丢弃，不给它配中性词 |
+| 账本点名说 **narrative** / **sidekick-lens** | 词干映射表没覆盖本项目自己的文件名 | kebab 名、全大写名、整段路径三类先归一；仍未映射的拉丁词干统一说成「某个文件」 |
 | 借来的句子末尾带**冒号/逗号** | 直接拼接 agent 原话 | `clause()` 收掉句尾标点 |
 | 「已完成」老是说**办完了一件事** | 动词表漏了本机工具，全掉进兜底 | 按首个汉字判过去式 + 不变式测试：词表里漏一个就红 |
 | **正在做**和**下一步**说同一句话 | 「下一步」只看上一件已完成的事 | 有正在做的一步就跟着它的目的猜下一步，重复了再换一套说法 |
@@ -386,7 +388,7 @@ dsh-sidekick-lens/
 │   └── client.js      # 客户端半：原生侧栏 tab 注册 + React 面板 + 全部样式
 ├── locale/{zh,en}.json
 ├── test/
-│   ├── narrative.test.mjs   # 80 项自动化测试
+│   ├── narrative.test.mjs   # 88 项自动化测试
 │   ├── preview.mjs          # 从 client.js 抠真 CSS 渲染静态预览，量溢出
 │   ├── preview.html         # 上者生成的默认（收起）态
 │   ├── preview-expanded.html# 上者生成的展开态
@@ -480,3 +482,4 @@ assistant-stream┘                                  ↓
 ---
 
 MIT License.
+
