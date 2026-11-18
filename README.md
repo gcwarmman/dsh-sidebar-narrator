@@ -219,7 +219,7 @@ README 是脚本生成的，**不要手改它**。除 YAML 之外还要满足：
 | 要求 | 本仓库状态 |
 | --- | --- |
 | `package.json` 里有 `dsh.bundle` | ✅ |
-| 仓库里有真能跑的代码，不是占位 | ✅ `lib/` 三个源文件、95 项测试 |
+| 仓库里有真能跑的代码，不是占位 | ✅ `lib/` 三个源文件、95 项语言测试 + 4 项守卫测试 |
 | 仓库创建满 1 天（CI 自动查） | ✅ 建于 2026-11-16 03:21 UTC，已满 24 小时 |
 | 仓库加 `dsh-plugin` topic | ✅ 已加（另一并加了 `deepseek-harness`/`sidebar`/`observability`） |
 | 描述属实（维护者会读源码核对每个数字与 API 名） | ✅ 本文档每条都给了证据 |
@@ -278,9 +278,10 @@ awesome-dsh-plugin 的那一个 YAML，和已提交的 PR 完全一致。
 ```bash
 cd D:\work\tagclear\dsh-sidekick-lens
 "C:\Program Files\nodejs\node.exe" test/narrative.test.mjs
+"C:\Program Files\nodejs\node.exe" test/guard.test.mjs
 ```
 
-95 项，覆盖上面 1–11 的全部场景 + 语言层单测 + 直播里踩出来的回归（见下）。
+95 项语言与行文案测试，覆盖上面 1–11 的全部场景 + 语言层单测 + 直播里踩出来的回归（见下）；另有 4 项同源守卫测试（`test/guard.test.mjs`：外站 `Origin` 与 `Sec-Fetch-Site: cross-site` 被拒，本机同源放行）。
 > Windows 沙箱下 `node --test test/` 会因为子进程 `spawn EPERM` 失败，直接跑测试文件本体即可。
 > 用管道接 `node` 的输出（`| Select-Object`、`2>&1 | Select-String`）也会报「拒绝访问」，别接管道。
 
@@ -397,7 +398,8 @@ dsh-sidekick-lens/
 ├── locale/{zh,en}.json
 ├── test/
 │   ├── narrative.test.mjs   # 95 项自动化测试
-│   ├── preview.mjs          # 从 client.js 抠真 CSS 渲染静态预览，量溢出
+│   ├── narrative.test.mjs   # 95 项语言与行文案测试
+│   ├── guard.test.mjs       # 4 项同源守卫测试
 │   ├── preview.html         # 上者生成的默认（收起）态
 │   ├── preview-expanded.html# 上者生成的展开态
 │   └── check-leak.mjs       # 审会话日志：只读通道有没有偷偷塞消息
@@ -446,6 +448,7 @@ assistant-stream┘                                  ↓
 11. **总账只算它看见的那一段**。计数来自本进程观察/重放的最近 400 条事件，不是整份历史账；
     插件重载后重新开始计数。所以「改了 4 个文件」是「这段里」，不是「有史以来」。
 12. **总账的「文件」是文件名的口语化叫法**，不是路径。同一目录下的同名文件会被并成一项。
+13. **五条 HTTP 路由不在 DSH 的访问检查之内**。它们由 DSH 的 web server 提供，但 `/__sidekick_lens/*` 是本插件自己的路径，DSH 不为它验证登录 cookie。已加同源守卫：带了外站 `Origin`、或 `Sec-Fetch-Site: cross-site` 的请求一律拒掉（`view` 与三个门返回 `ok:false` 的一句人话，`stream` 返回 403）。不带这两个头的请求（本机脚本、curl、测试）放行——守卫防的是「浏览器里另一个页面」，不是身份认证；能在这台机器上跑代码的人本来就能直接跟 Host 说话。
 
 ---
 
@@ -490,4 +493,7 @@ assistant-stream┘                                  ↓
 ---
 
 MIT License.
+
+
+
 
