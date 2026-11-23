@@ -92,6 +92,13 @@ body { display: flex; }
   white-space: nowrap;
 }
 
+.skl-elapsed {
+  font-size: 11.5px;
+  color: var(--dsw-alias-label-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .skl-pos {
   font-size: 11px;
   color: var(--dsw-alias-label-caption);
@@ -149,7 +156,11 @@ body { display: flex; }
 .skl-rows {
   display: flex;
   flex-direction: column;
-  margin: 10px -6px 0;
+  /* The negative gutter lets a row's hover tint bleed past the panel padding so
+     the tint edge lines up with the text. It must stay inside the 15px padding:
+     -6px on each side plus a 6px inner padding used to leave the rows 3px wider
+     than the panel, which produced a horizontal scrollbar at 176px. */
+  margin: 10px 0 0;
   flex: none;
 }
 
@@ -162,6 +173,9 @@ body { display: flex; }
 .skl-row {
   display: block;
   width: 100%;
+  /* width:100% + horizontal padding overflowed the panel by 12px before this,
+     which showed up as a horizontal scrollbar at the 176px split width. */
+  box-sizing: border-box;
   padding: 9px 6px;
   border: none;
   border-radius: 8px;
@@ -241,6 +255,12 @@ body { display: flex; }
   background: color-mix(in srgb, var(--skl-accent) 10%, transparent);
 }
 
+/* 推断：虚线底，看起来比「已观察到」虚、比「仅据汇报」冷 —— 不引入第三种颜色。 */
+.skl-src[data-src="inferred"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent);
+}
+
 /* ---- 详情 ---- */
 .skl-detail {
   display: flex;
@@ -310,6 +330,75 @@ body { display: flex; }
   word-break: break-word;
 }
 
+/* ---- 进度条：这一件事走到哪一格 ----
+   用户要的是「我提的这件事做到哪了」。五段是这件事真实要经过的五步：
+   看清 → 动手改 → 跑验证 → 过了。段数固定，灯在哪段是事实，不是估计。 */
+.skl-stages {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.skl-stage {
+  flex: 1 1 0;
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--dsw-alias-label-caption) 20%, transparent);
+}
+
+.skl-stage[data-on="1"] {
+  background: color-mix(in srgb, var(--skl-accent) 78%, var(--dsw-alias-label-secondary));
+}
+
+.skl-stage[data-on="1"][data-bad="1"] {
+  background: #c96a6a;
+}
+
+.skl-stage-name {
+  flex: none;
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.skl-verdict {
+  font-size: 12px;
+  line-height: 1.58;
+  color: var(--dsw-alias-label-secondary);
+  margin-bottom: 6px;
+  overflow-wrap: anywhere;
+}
+
+/* 它自己列的计划：编号原样保留，因为顺序就是它打算做的顺序。 */
+.skl-plan {
+  margin-bottom: 6px;
+}
+
+.skl-plan-head {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--skl-hair-2);
+  text-transform: none;
+  margin-bottom: 3px;
+}
+
+.skl-plan-item {
+  font-size: 11.5px;
+  line-height: 1.62;
+  color: var(--dsw-alias-label-secondary);
+  padding-left: 11px;
+  text-indent: -11px;
+  overflow-wrap: anywhere;
+}
+
+.skl-plan-item::before {
+  content: '·';
+  margin-right: 5px;
+  color: var(--skl-hair-2);
+}
+
 .skl-ledger-items {
   display: flex;
   flex-wrap: wrap;
@@ -343,6 +432,451 @@ body { display: flex; }
   background: var(--dsw-alias-bg-layer-2);
   overflow-wrap: anywhere;
   flex: none;
+}
+
+/* ---- 战况：往回看的那一块 ----
+   三行是「此刻」，账本是「这件事」，战况是「刚才发生了什么」。
+   没有盒子、没有底色：它是一条记录，不是第二张卡片。 */
+.skl-log {
+  margin: 16px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--skl-hair);
+  flex: none;
+}
+
+.skl-log-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.skl-log-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--skl-accent) 72%, var(--dsw-alias-label-secondary));
+}
+
+.skl-log-toggle {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-caption);
+  cursor: pointer;
+}
+
+.skl-log-toggle:hover { color: var(--dsw-alias-label-secondary); }
+
+.skl-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* 高度不给死值，由条数决定：一条战报可能折成两行，用固定 max-height
+     必然把最后一条切成半截，看起来像渲染坏了。条数在 Log 组件里截。 */
+  max-height: none;
+  overflow-x: hidden;
+}
+
+.skl-log-item {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  min-width: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.skl-log-kind {
+  flex: none;
+  width: 30px;
+  font-size: 10px;
+  color: var(--dsw-alias-label-caption);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 颜色只用来区分「谁说的」这件事本身，不新增一套配色：
+   你和它的动作是正文色，它的口头承诺是唯一的第二种颜色。 */
+.skl-log-item[data-kind="you"] .skl-log-kind { color: color-mix(in srgb, var(--skl-accent) 70%, var(--dsw-alias-label-secondary)); }
+.skl-log-item[data-kind="fail"] .skl-log-kind { color: var(--dsw-alias-state-error-primary); }
+.skl-log-item[data-src="reported"] .skl-log-text { color: color-mix(in srgb, var(--skl-accent) 62%, var(--dsw-alias-label-secondary)); }
+.skl-log-item[data-kind="turn"] { opacity: .72; }
+
+.skl-log-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 重复次数：紧跟在原句后面，不单独占一行，也不加颜色 */
+.skl-log-count {
+  margin-left: 4px;
+  font-size: 10px;
+  color: var(--dsw-alias-label-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.skl-log-time {
+  flex: none;
+  font-size: 10px;
+  color: var(--dsw-alias-label-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.skl-log-note {
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-caption);
+  margin-top: 4px;
+}
+
+/* ---- 清单对位：哪条做完了、哪条正在做 ----
+   它自己写的计划要和实际推进对上，否则那就是一张愿望清单。 */
+.skl-plan-item[data-todo="done"] { opacity: .55; text-decoration: line-through; }
+.skl-plan-item[data-todo="dropped"] { opacity: .45; }
+.skl-plan-item[data-todo="active"] { color: var(--dsw-alias-label-primary); }
+.skl-plan-item[data-todo="active"]::before { color: var(--skl-accent); content: '▸'; }
+
+.skl-todo-tag {
+  font-size: 9.5px;
+  margin-left: 5px;
+  padding: 0 4px;
+  border-radius: 3px;
+  color: var(--dsw-alias-label-caption);
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);
+  white-space: nowrap;
+}
+
+/* ---- 派出去的队：指挥官看的不该只有自己那一格 ----
+   一个子 agent 是一整支队伍，不是一次工具调用。这里用和主面板同一套灯色与
+   措辞，让它读起来是同一张图的延伸，而不是第二套术语。 */
+.skl-tree {
+  margin: 14px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--skl-hair);
+  flex: none;
+}
+
+.skl-tree-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.skl-tree-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--skl-accent) 72%, var(--dsw-alias-label-secondary));
+}
+
+.skl-tree-count {
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.skl-squad {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--skl-hair);
+}
+
+.skl-squad:last-child { border-bottom: none; }
+
+/* 灯和主面板那盏一样：只有一盏颜色系统，不另起一套。 */
+.skl-squad-dot {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--dsw-alias-label-caption);
+}
+
+.skl-squad[data-light="blue"] .skl-squad-dot { background: #5b8fd0; }
+.skl-squad[data-light="yellow"] .skl-squad-dot { background: #c08b3e; }
+.skl-squad[data-light="cyan"] .skl-squad-dot { background: #3f9c94; }
+.skl-squad[data-light="green"] .skl-squad-dot { background: var(--dsw-alias-state-success-primary); }
+.skl-squad[data-light="red"] .skl-squad-dot { background: var(--dsw-alias-state-error-primary); }
+
+.skl-squad[data-running="true"] .skl-squad-dot {
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.skl-squad-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.skl-squad-mission {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--dsw-alias-label-caption);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  /* 一行就够：它是「这是哪一队」的标签，不是第二段正文。 */
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.skl-squad-doing {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-primary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.skl-squad[data-running="false"] .skl-squad-doing { color: var(--dsw-alias-label-secondary); }
+
+.skl-squad-meta {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-caption);
+  overflow-wrap: anywhere;
+}
+
+.skl-squad[data-failed="true"] .skl-squad-meta { color: var(--dsw-alias-state-error-primary); }
+
+/* ---- 提醒回执：发出去了 ≠ 它看到了 ----
+   三档，颜色只用主题的成/败色加中性色，不另起一套。 */
+.skl-receipts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.skl-receipt {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.skl-receipt-tag {
+  flex: none;
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-caption);
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);
+}
+
+/* 读到了才是好消息；还没读到用中性色，不吓人也不邀功。 */
+.skl-receipt[data-state="read"] .skl-receipt-tag {
+  color: var(--dsw-alias-state-success-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 12%, transparent);
+}
+
+.skl-receipt[data-state="stale"] .skl-receipt-tag {
+  color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 82%, var(--dsw-alias-label-secondary));
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent);
+}
+
+.skl-receipt-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* ---- 从开头到现在：编年史 ----
+   这是「总览」。战况是一条条孤立的动作，编年史把每件事写成一章：问了什么 →
+   做了什么 → 怎么收尾。没有这条主轴，再多条目也只是碎片。 */
+.skl-chr {
+  margin: 16px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--skl-hair);
+  flex: none;
+}
+
+.skl-chr-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.skl-chr-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--skl-accent) 72%, var(--dsw-alias-label-secondary));
+}
+
+.skl-chr-total {
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 一句话战况：几件办完、几件没过、几件还开着。指挥官第一眼要的就是这个。 */
+.skl-chr-summary {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-secondary);
+  margin-bottom: 8px;
+  overflow-wrap: anywhere;
+}
+
+.skl-chr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 一章。左边一条竖线贯穿，表明这些都是同一条时间轴上的事。 */
+.skl-chapter {
+  position: relative;
+  padding: 7px 0 7px 11px;
+  border-left: 1px solid var(--skl-hair-2);
+  min-width: 0;
+}
+
+.skl-chapter[data-live="true"] { border-left-color: var(--skl-accent); }
+
+.skl-chapter:last-child { padding-bottom: 2px; }
+
+.skl-chapter-head {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.skl-chapter-n {
+  flex: none;
+  font-size: 10px;
+  color: var(--dsw-alias-label-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 「它要的东西」永远是这一章的第一句 —— 没有它，下面发生什么都读不懂。 */
+.skl-chapter-ask {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-primary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.skl-chapter[data-live="true"] .skl-chapter-ask { color: var(--dsw-alias-label-primary); font-weight: 500; }
+.skl-chapter[data-live="false"] .skl-chapter-ask { color: var(--dsw-alias-label-secondary); }
+
+.skl-chapter-flag {
+  flex: none;
+  font-size: 9.5px;
+  padding: 0 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--skl-accent) 75%, var(--dsw-alias-label-secondary));
+  background: color-mix(in srgb, var(--skl-accent) 12%, transparent);
+}
+
+/* 结局：一句话说这件事成没成。这是「有尾」。 */
+.skl-chapter-outcome {
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--dsw-alias-label-secondary);
+  margin-top: 1px;
+  overflow-wrap: anywhere;
+}
+
+.skl-chapter[data-status="done"] .skl-chapter-outcome,
+.skl-chapter[data-status="verified"] .skl-chapter-outcome,
+.skl-chapter[data-status="done-nothing"] .skl-chapter-outcome {
+  color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 78%, var(--dsw-alias-label-secondary));
+}
+
+.skl-chapter[data-status="blocked"] .skl-chapter-outcome,
+.skl-chapter[data-status="done-blocked"] .skl-chapter-outcome {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+/* 「没走完」这一行只在真的没走完时出现，所以它不必再加重语气。 */
+.skl-chapter-ending {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-caption);
+  margin-top: 1px;
+  overflow-wrap: anywhere;
+}
+
+.skl-chapter-meta {
+  font-size: 10px;
+  color: var(--dsw-alias-label-caption);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skl-chapter-beats {
+  margin: 3px 0 0;
+  padding: 0 0 0 2px;
+  list-style: none;
+}
+
+.skl-chapter-beat {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-caption);
+  padding-left: 9px;
+  text-indent: -9px;
+  overflow-wrap: anywhere;
+}
+
+.skl-chapter-beat::before { content: '·'; margin-right: 4px; }
+
+.skl-chapter-beat[data-kind="run"] { color: var(--dsw-alias-label-secondary); }
+.skl-chapter-beat[data-kind="fail"] { color: var(--dsw-alias-state-error-primary); }
+
+.skl-chapter[data-said] .skl-chapter-said {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--skl-accent) 62%, var(--dsw-alias-label-secondary));
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.skl-chr-more {
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-caption);
+  margin-top: 6px;
 }
 
 /* ---- 被叫停 ---- */
@@ -520,16 +1054,16 @@ body { display: flex; }
 .skl { height: 100%; }
 </style></head>
 <body><div id="panel">
-<div class="skl" data-light="cyan">
+<div class="skl" data-light="green">
   <div class="skl-head">
-    <span class="skl-light" data-light="cyan" data-pulse="true"></span>
+    <span class="skl-light" data-light="green" data-pulse="false"></span>
     <span class="skl-head-text">
-      <span class="skl-lightword">在跑或测</span>
-      <span class="skl-pos">第 83 / 83 步</span>
+      <span class="skl-lightword">完成</span>
+      <span class="skl-pos">第 1 / 1 步</span>
     </span>
   </div>
   <div class="skl-progress"><i style="width:100%"></i></div>
-  <div class="skl-pulse" data-alive="false" data-running="true" aria-hidden="true">
+  <div class="skl-pulse" data-alive="false" data-running="false" aria-hidden="true">
 <svg class="skl-wave" viewBox="0 0 240 44" preserveAspectRatio="none" focusable="false">
 <defs>
 <linearGradient id="pw-fill" x1="0" y1="0" x2="0" y2="1">
@@ -547,23 +1081,12 @@ body { display: flex; }
 
 </svg></div>
   <div class="skl-rows">
-<div class="skl-row-group" data-key="done">
-  <div role="button" tabindex="0" class="skl-row" data-key="done" data-tone="normal" data-open="false" aria-expanded="false" title="点一下展开">
-    <span class="skl-row-head">
-      <span class="skl-row-label">已完成</span>
-      <span class="skl-row-line">
-        <span class="skl-row-text">改完了「preview」。</span>
-        <span class="skl-src" data-src="observed" title="来自真实的工具调用和结果">已观察到</span>
-      </span>
-    </span>
-  </div>
-</div>
 <div class="skl-row-group" data-key="doing">
   <div role="button" tabindex="0" class="skl-row" data-key="doing" data-tone="normal" data-open="false" aria-expanded="false" title="点一下展开">
     <span class="skl-row-head">
       <span class="skl-row-label">正在做</span>
       <span class="skl-row-line">
-        <span class="skl-row-text">在跑测试，确认改完没有碰坏别的。</span>
+        <span class="skl-row-text">现在没在动。</span>
         <span class="skl-src" data-src="observed" title="来自真实的工具调用和结果">已观察到</span>
       </span>
     </span>
@@ -574,23 +1097,27 @@ body { display: flex; }
     <span class="skl-row-head">
       <span class="skl-row-label">下一步</span>
       <span class="skl-row-line">
-        <span class="skl-row-text">把结果对一遍，再决定接着改哪里。</span>
+        <span class="skl-row-text">等你发话，或者它自己开下一件。</span>
         <span class="skl-src" data-src="observed" title="来自真实的工具调用和结果">已观察到</span>
       </span>
     </span>
   </div>
 </div></div>
   
+  
 <div class="skl-ledger">
   <div class="skl-ledger-head">
-    <span class="skl-ledger-phase">验证结果</span>
+    <span class="skl-ledger-phase">已经收尾</span>
     
   </div>
-  <div class="skl-ledger-summary">到目前为止：改了 4 个文件、看过 32 处代码、跑过 36 次命令。</div>
+  
+  <div class="skl-ledger-summary">还没出成品：这一轮刚开始。</div>
   
 </div>
   
   
+  
+  <div class="skl-idle">空闲。还没干过活，说一句它就开工。</div>
   
 <div class="skl-door" data-door="ask">
   <div class="skl-door-head"><span class="skl-door-title">问解释助手</span></div>

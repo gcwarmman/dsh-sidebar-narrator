@@ -22,6 +22,7 @@ import {
   describeCall,
   englishAction,
   explainPrompt,
+  failureReason,
   humanElapsed,
   humanError,
   humanTool,
@@ -37,6 +38,7 @@ import {
   pastTense,
   scrub,
   sentence,
+  clause,
   textOfContent,
 } from '../lib/narrative.js'
 
@@ -128,7 +130,14 @@ test('pastTense covers every verb the panel can emit', () => {
   // An unseen verb still says something specific, judged by its first character.
   assert.equal(pastTense('在看文档', 'read'), '看过了')
   assert.equal(pastTense('在改配置', 'write'), '改好了')
-  assert.equal(pastTense('在跑脚本', 'run'), '跑完了')
+  assert.equal(pastTense('在跑流水线', 'run'), '跑完了')
+  // The shell verbs added so a command row names its own work instead of saying
+  // 「命令跑完了」: they need their own past tense, not the first-char guess.
+  assert.equal(pastTense('在跑脚本', 'run'), '脚本跑完了')
+  assert.equal(pastTense('在读文件', 'run'), '读完了')
+  assert.equal(pastTense('在看目录', 'run'), '目录看过了')
+  assert.equal(pastTense('在文件里找', 'run'), '翻过了')
+  assert.equal(pastTense('在看进程', 'run'), '进程看过了')
   for (const verb of ['在看', '在改', '在写', '在跑测试', '在找', '在理清单']) {
     assert.notEqual(pastTense(verb).startsWith('做完了一件'), true, verb)
   }
@@ -145,8 +154,56 @@ test('humanError turns raw failures into one plain sentence', () => {
   assert.equal(humanError('EPERM: operation not permitted'), '有个文件被别的程序占着，改不动')
   assert.equal(humanError('ENOENT: no such file or directory'), '找不到那个文件了')
   assert.equal(humanError('ETIMEDOUT'), '等太久没反应，超时了')
-  assert.equal(humanError(''), '碰到个没预料的错，正在想办法绕过去')
   assert.equal(/[A-Z]{2,}_/.test(humanError('ERR_PNPM something')), false)
+  // An empty reason still has to say something true and actionable. The old
+  // catch-all 「碰到个没预料的错，正在想办法绕过去」 was shown for most real
+  // failures and told the reader nothing they could act on.
+  assert.match(humanError(''), /没做成/)
+  assert.doesNotMatch(humanError(''), /没预料的错/)
+})
+
+test('humanError names the failures this harness actually produces', () => {
+  // These five are the real shapes found in a live session log: `error` carries
+  // only `{ name, code }` and the sentence a person needs is in message text.
+  assert.match(humanError('FS_NOT_OBSERVED cannot modify a file: file has not been read'), /还没看过这个文件/)
+  assert.match(humanError('FS_AMBIGUOUS_EDIT old_string matched 2 times'), /不止一次/)
+  assert.match(humanError('TOOL_OUTCOME_UNKNOWN no result was durably recorded'), /结果没记下来/)
+  assert.match(humanError('Error: unknown job pwsh-ee22e90fab9f4c72'), /找不到了/)
+  assert.match(humanError('the user rejected escalating this command to "danger-full-access"'), /没被批准/)
+  // Every branch stays in plain Chinese: no codes, no tool names, no paths.
+  for (const raw of [
+    'FS_NOT_OBSERVED D:\\work\\proj\\a.js',
+    'FS_AMBIGUOUS_EDIT old_string matched 2 times in "D:\\w\\lib\\index.js"',
+    'TOOL_OUTCOME_UNKNOWN',
+    'unknown job pwsh-1a2b3c4d5e6f',
+    'Error: EACCES: permission denied, open "C:\\Windows\\x"',
+  ]) {
+    const line = humanError(raw)
+    assert.equal(/[A-Z]{2,}_|[A-Za-z]:\\|[\\/]|pwsh/.test(line), false, `${raw} → ${line}`)
+  }
+})
+
+test('humanError quotes the Chinese part of an error it has never seen', () => {
+  // A code nobody mapped still must not become a shrug. If the message already
+  // contains a readable run of Chinese, that is the most specific thing the
+  // panel can honestly say.
+  assert.match(humanError('SomeError: 目标文件正在被别的进程写入，请稍后重试'), /目标文件正在被别的进程写入/)
+  assert.doesNotMatch(humanError('SomeError: 目标文件正在被别的进程写入，请稍后重试'), /SomeError/)
+})
+
+test('failureReason reads the message text, not only the code', () => {
+  // The durable event is `{ error: { name, code }, message: { content: [{ text }] } }`.
+  // Reading `error.code` alone is exactly why every failure came out generic.
+  assert.match(
+    failureReason({
+      error: { name: 'FsError', code: 'FS_NOT_OBSERVED' },
+      message: { isError: true, content: [{ type: 'text', text: 'file has not been read' }] },
+    }),
+    /file has not been read/,
+  )
+  // A failure with no `error` object at all still has its text.
+  assert.match(failureReason({ error: null, message: { isError: true, content: [{ type: 'text', text: 'unknown job pwsh-1' }] } }), /unknown job/)
+  assert.equal(failureReason({}), '')
 })
 
 test('durations read like a person wrote them', () => {
@@ -239,7 +296,9 @@ test('scenario: a tool failure turns the light red with a plain sentence', () =>
   assert.equal(view.light, 'red')
   assert.match(view.lightNote, /没过去|没对上/)
   const doing = view.rows.find((row) => row.key === 'doing')
-  assert.match(doing.text, /这里可能卡住了/)
+  // 「这里」没有指代对象；卡住的那一步有名字就必须点名。
+  assert.match(doing.text, /卡住了/)
+  assert.match(doing.text, /改|文件/)
   assert.equal(/FS_EDIT_NOT_FOUND|old_string/.test(doing.text), false)
 })
 
@@ -358,6 +417,79 @@ test('idle never quotes an English line into a Chinese panel', () => {
   assert.match(buildIdleText(zh, {}), /改完了/)
 })
 
+test('idle never quotes markdown scaffolding or a dangling lead-in', () => {
+  // 真事：上一轮收尾是一段带小标题的汇报，空状态原样印出
+  // 「最后一句：## 这次修掉的真问题 **1. 英文调试文本漏进面板**」。
+  const state = createLensState('s')
+  applySessionEvent(state, { type: 'turn/start', time: T0, data: { turn: 1 } }, T0)
+  applySessionEvent(state, {
+    type: 'assistant/message', time: T0 + 20,
+    data: {
+      turn: 1,
+      step: 1,
+      message: {
+        content: [{
+          type: 'text',
+          text: '## 这次修掉的真问题\n\n**1. 英文调试文本漏进面板**\n\n```\n├── lib/\n```\n\n三行话现在都说人话了。\n\n下面列出还差什么：',
+        }],
+      },
+    },
+  }, T0 + 20)
+  applySessionEvent(state, { type: 'turn/end', time: T0 + 30, data: { turn: 1, reason: { kind: 'completed' } } }, T0 + 30)
+  const text = buildIdleText(state, {})
+  assert.match(text, /三行话现在都说人话了/)
+  assert.equal(/##|\*\*|```|├──/.test(text), false, text)
+  // 悬空的引子不能当结尾；上一句完整的才是结论。
+  assert.equal(/下面列出还差什么[:：]/.test(text), false, text)
+  assert.equal(/[:：，、]$/.test(text.trim()), false, text)
+})
+
+test('idle never prints a sentence it had to cut in half', () => {
+  // 真事：截断落在句中，空状态以「…可以在没有会」收尾，读者永远不知道结论。
+  const state = createLensState('s')
+  applySessionEvent(state, { type: 'turn/start', time: T0, data: { turn: 1 } }, T0)
+  applySessionEvent(state, {
+    type: 'assistant/message', time: T0 + 20,
+    data: {
+      turn: 1,
+      step: 1,
+      message: {
+        content: [{
+          type: 'text',
+          text: '理由：语言层零依赖、纯函数，所以「三行话对不对」可以在没有会话、没有模型、没有浏览器的情况下逐条断言，这是这一版最重要的取舍。搞定。',
+        }],
+      },
+    },
+  }, T0 + 20)
+  applySessionEvent(state, { type: 'turn/end', time: T0 + 30, data: { turn: 1, reason: { kind: 'completed' } } }, T0 + 30)
+  const text = buildIdleText(state, {})
+  assert.match(text, /搞定/)
+  assert.equal(/…/.test(text), false, text)
+})
+
+test('idle never fuses two lines into one sentence, nor quotes a number it cannot explain', () => {
+  // 真事：一行是验收清单（「5 latest/download 链接可用 ✅ 200 / 97798 字节 …」），
+  // 下一行才是结论（「全部验完。」）。`scrub` 折叠换行后两句被焊成一句，
+  // 结论跟着那一行数字一起被当成长句丢掉，空状态只剩下时长和文件数。
+  const state = createLensState('s')
+  applySessionEvent(state, { type: 'turn/start', time: T0, data: { turn: 1 } }, T0)
+  applySessionEvent(state, {
+    type: 'assistant/message', time: T0 + 20,
+    data: {
+      turn: 1,
+      step: 1,
+      message: {
+        content: [{
+          type: 'text',
+          text: '5 latest/download 链接可用 ✅ 200 / 97798 字节 6 条目里加了 tarball: ✅\n\n全部验完。',
+        }],
+      },
+    },
+  }, T0 + 20)
+  applySessionEvent(state, { type: 'turn/end', time: T0 + 30, data: { turn: 1, reason: { kind: 'completed' } } }, T0 + 30)
+  assert.match(buildIdleText(state, {}), /全部验完/)
+})
+
 // ---------------------------------------------------------------------------
 // 验收：默认主面板只有三行 + 一盏灯，位置感而非百分比
 // ---------------------------------------------------------------------------
@@ -375,7 +507,7 @@ test('acceptance: at most three rows, each short, each with provenance', () => {
   assert.deepEqual(view.rows.map((row) => row.key), ['done', 'doing', 'next'])
   for (const row of view.rows) {
     assert.ok(row.text.length <= 60, `row too long: ${row.text}`)
-    assert.equal(row.source === 'observed' || row.source === 'reported', true)
+    assert.equal(row.source === 'observed' || row.source === 'inferred' || row.source === 'reported', true)
     assert.equal(/[A-Za-z]:\\|\/app\/|read_file|grep/.test(row.text), false, `machine noise in: ${row.text}`)
   }
   // 位置感：第 N / M 步，没有百分比
@@ -608,9 +740,109 @@ test('regression: a borrowed clause never ends on its own punctuation', () => {
   assert.equal(/[，,]$/.test(doing.text), false, doing.text)
 })
 
-// ---------------------------------------------------------------------------
-// 心跳：动画读的是真事，不是计时器
-// ---------------------------------------------------------------------------
+test('regression: a borrowed clause never leaves a bracket hanging open', () => {
+  // 真事：截断点正好落在「（」后面，面板印出
+  // 「在读文件「客户端」，功能侧已确认完好（ 返回 200，三行、灯、位置、…」
+  // —— 括号引进来的东西没进来，读者只看见半个括号和一片空白。
+  const line = clause('功能侧已确认完好（ 返回 200，三行、灯、位置、命名空间都对', 26)
+  assert.equal(/[（(「《]$/.test(line), false, line)
+  assert.equal(/[（(]/.test(line), false, line)
+  // 配对完整的括号照旧保留：它们本来就是一个整体。
+  assert.equal(clause('确认（只读）够用', 40), '确认（只读）够用')
+  // 末尾的省略号也是截断的痕迹，一起收掉。
+  assert.equal(/…$/.test(clause('把这一长串说法先截一下看看效果如何', 8)), false)
+})
+
+test('regression: a finished-work sentence never becomes the reason, whatever its wording', () => {
+  // 「已完成」「已生效」之外，「已确认」「看过了」同样是汇报干完的事。
+  for (const done of ['功能侧已确认完好', '刚才看过了，没问题', '已经读完了这一段', '语法查过了']) {
+    assert.equal(looksForward(done), false, done)
+  }
+  // 真正的打算仍然要留下，别把判据收得连打算都拦掉。
+  for (const plan of ['接下来要确认窄栏下的效果', '先看看预览生成的顺序']) {
+    assert.equal(looksForward(plan), true, plan)
+  }
+})
+
+test('thinking: a category word becomes the file the thought actually named', () => {
+  // 真事：思考里写着「grep for sidebarRight in ui-plugin.md」，面板却说「在看界面」。
+  const state = createLensState('session-test')
+  noteThinking(state, ' Let me grep the sidebar panel CSS in ui-plugin.md before touching anything.')
+  assert.match(englishAction(state), /ui-plugin|插件|说明文档/)
+  assert.notEqual(englishAction(state), '看界面')
+})
+
+test('thinking: with no file named, the finished step lends its object instead of a category', () => {
+  // 思考只点到类别词，而上一步刚刚点过具体文件：借那个，不退回「界面」。
+  const state = createLensState('session-test')
+  applySessionEvent(state, { type: 'turn/start', time: T0, data: { turn: 1 } })
+  applySessionEvent(state, {
+    type: 'tool/call', time: T0 + 2,
+    data: { turn: 1, step: 1, callId: 'c1', name: 'read', arguments: JSON.stringify({ file_path: 'D:\\work\\x\\lib\\client.js' }) },
+  })
+  applySessionEvent(state, {
+    type: 'tool/result', time: T0 + 3,
+    data: { turn: 1, step: 1, callId: 'c1', name: 'read', result: { ok: true }, message: { role: 'tool', content: [{ type: 'text', text: 'ok' }] } },
+  })
+  noteThinking(state, ' Let me look at the ui layout panel next.')
+  // 借来的宾语带上一步的说法（「客户端」的代码），仍然远胜「看界面」。
+  assert.match(englishAction(state), /客户端/)
+  assert.equal(/界面/.test(englishAction(state)), false, englishAction(state))
+})
+
+test('rows: a category-level guess yields to the step that named something', () => {
+  // 「接着看界面」在一场里出现 501 次；而「正在做」那行早就点着具体文件。
+  const state = createLensState('session-test')
+  applyAgentStatus(state, 'running', T0)
+  applySessionEvent(state, { type: 'turn/start', time: T0, data: { turn: 1 } })
+  noteThinking(state, ' Now look at the ui panel layout for the sidebar.')
+  applySessionEvent(state, {
+    type: 'tool/call', time: T0 + 2,
+    data: { turn: 1, step: 1, callId: 'c1', name: 'edit', arguments: JSON.stringify({ file_path: 'D:\\work\\x\\lib\\narrative.js', old_string: 'a', new_string: 'b' }) },
+  })
+  const view = buildView(state, T0 + 3, {})
+  const next = view.rows.find((row) => row.key === 'next')
+  assert.equal(/界面/.test(next.text), false, next.text)
+})
+
+test('rows: 下一步 is never just 正在做 re-tensed', () => {
+  // 真会话里「在看「客户端」。」头上顶着「接着看「客户端」。」211 帧；整场 63.9% 的帧
+  // 里两行都点着同一个对象。`repeats` 认不出这个 —— 它要六个连续相同字符，而
+  // 「在看」「接着看」只有两三个。这类行不是下一步，是把上面那行又念了一遍。
+  const state = createLensState('session-test')
+  applyAgentStatus(state, 'running', T0)
+  applySessionEvent(state, { type: 'turn/start', time: T0, data: { turn: 1 } })
+  applySessionEvent(state, {
+    type: 'tool/call', time: T0 + 2,
+    data: { turn: 1, step: 1, callId: 'c1', name: 'read', arguments: JSON.stringify({ file_path: 'D:\\work\\x\\lib\\client.js' }) },
+  })
+  const view = buildView(state, T0 + 3, {})
+  const doing = view.rows.find((row) => row.key === 'doing')
+  const next = view.rows.find((row) => row.key === 'next')
+  assert.match(doing.text, /客户端/, doing.text)
+  // 同一个对象 + 同一个动作：不能换个时态再印一遍。
+  assert.doesNotMatch(next.text, /^接着[看读翻]/, `${next.text}  ←  ${doing.text}`)
+})
+
+test('rows: two different moves on one file still both show', () => {
+  // 同一份文件、两个不同动作（改完 → 跑测试确认）是读者最需要的一对，不能被去重吃掉。
+  const state = createLensState('session-test')
+  applyAgentStatus(state, 'running', T0)
+  applySessionEvent(state, { type: 'turn/start', time: T0, data: { turn: 1 } })
+  applySessionEvent(state, {
+    type: 'tool/call', time: T0 + 2,
+    data: { turn: 1, step: 1, callId: 'c1', name: 'edit', arguments: JSON.stringify({ file_path: 'D:\\work\\x\\lib\\client.js', old_string: 'a', new_string: 'b' }) },
+  })
+  applySessionEvent(state, {
+    type: 'tool/result', time: T0 + 3,
+    data: { turn: 1, step: 1, callId: 'c1', message: { isError: false }, error: null },
+  })
+  applySessionEvent(state, { type: 'step/start', time: T0 + 4, data: { turn: 1, step: 2 } })
+  const view = buildView(state, T0 + 5, {})
+  const next = view.rows.find((row) => row.key === 'next')
+  assert.match(next.text, /跑一遍测试/, next.text)
+})
+
 
 test('pulse: a beat from a real event lights a slot', () => {
   const state = createLensState('session-pulse')
@@ -974,8 +1206,10 @@ test('a stopped turn says what survived it, in a field the panel can render', ()
   assert.notEqual(view.cancelNote, null)
   assert.equal(typeof view.cancelNote.text, 'string')
   assert.match(view.cancelNote.text, /叫停|停/)
-  // It must not claim work that never happened.
-  assert.match(view.cancelNote.text, /0 个文件|留着/)
+  // It must not claim work that never happened, and it must not report the step
+  // count: 「已经做完 49 步」 counts tool calls, which is not progress.
+  assert.match(view.cancelNote.text, /0 个文件|留着|还没改到文件/)
+  assert.doesNotMatch(view.cancelNote.text, /\d+ 步/)
 })
 // ---------------------------------------------------------------------------
 // 思维链：读得到的思路，不是猜出来的思路
@@ -1384,4 +1618,385 @@ test('rows: a gap sentence never doubles the past tense', () => {
   const view = replay(events, { now: T0 + 31 })
   const doing = view.rows.find((row) => row.key === 'doing')
   assert.doesNotMatch(doing.text, /刚[^，]*过了/, doing.text)
+})
+
+test('rows: a step is reported finished, not narrated twice', () => {
+  // 「刚翻过「客户端」，在判断要不要接着改」 repeats the row above (same action, same
+  // object) and adds a stock tail. In one real session 41% of 正在做 frames carried
+  // one of five such tails, so the row said nothing the frame before had not.
+  const events = [
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ...step('read', { file_path: 'src/auth/login.tsx' }, T0 + 10),
+    { type: 'step/start', time: T0 + 30, data: { turn: 1, step: 2 } },
+  ]
+  const view = replay(events, { now: T0 + 31 })
+  const done = view.rows.find((row) => row.key === 'done')
+  const doing = view.rows.find((row) => row.key === 'doing')
+  const actions = /在挑下一处该看的地方|在找下一处要动的地方|在判断要不要接着改|看清楚里面到底写了什么/
+  assert.doesNotMatch(doing.text, actions, doing.text)
+  // It still has to say where the work stands — silence is not an improvement.
+  assert.match(doing.text, /这步收尾了|还没开下一步/, doing.text)
+  assert.notEqual(doing.text.replace(/[。！？]/g, ''), done.text.replace(/[。！？]/g, ''))
+})
+
+test('rows: a long wait is a number, not a shrug', () => {
+  // 「在看「图标」」 reads the same whether the call started two seconds ago or has
+  // been hanging for eighteen minutes — and the hanging case is the one where the
+  // reader needs to know. The number only appears past a minute so short steps stay
+  // clean.
+  const events = [
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+  ]
+  const quick = replay([
+    ...events,
+    { type: 'tool/call', time: T0 + 10, data: { turn: 1, step: 1, callId: 'c1', name: 'read', arguments: '{"file_path":"src/auth/login.tsx"}' } },
+  ], { now: T0 + 15 })
+  assert.doesNotMatch(quick.rows.find((row) => row.key === 'doing').text, /已经/, 'a 5-second call needs no number')
+
+  const stuck = replay([
+    ...events,
+    { type: 'tool/call', time: T0 + 10, data: { turn: 1, step: 1, callId: 'c1', name: 'read', arguments: '{"file_path":"src/auth/login.tsx"}' } },
+  ], { now: T0 + 10 + 18 * 60_000 })
+  const doing = stuck.rows.find((row) => row.key === 'doing')
+  assert.match(doing.text, /已经 18 分钟了/, doing.text)
+})
+
+test('rows: a long gap after the last step also says how long', () => {
+  // Same argument for the between-steps sentence: 「这步收尾了，还没开下一步」 is
+  // honest but leaves the reader unable to tell a pause from a wedge.
+  const events = [
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ...step('read', { file_path: 'src/auth/login.tsx' }, T0 + 10),
+    { type: 'step/start', time: T0 + 30, data: { turn: 1, step: 2 } },
+  ]
+  const view = replay(events, { now: T0 + 30 + 4 * 60_000 })
+  const doing = view.rows.find((row) => row.key === 'doing')
+  assert.match(doing.text, /已经 4 分钟没有新动作/, doing.text)
+})
+
+test('provenance: a next step that a template invented is never tagged observed', () => {
+  // The panel has three sources, and 已观察到 has to keep meaning what README says
+  // it means: a tool call and its result were actually read. A row derived from
+  // 「上一步是 read，所以下一步大概是改」 is a prediction, and in one real session
+  // 99.1% of 下一步 rows claimed otherwise.
+  const view = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ...step('read', { file_path: 'src/auth/login.tsx' }, T0 + 10),
+    { type: 'step/start', time: T0 + 30, data: { turn: 1, step: 2 } },
+  ], { now: T0 + 40 })
+  const next = view.rows.find((row) => row.key === 'next')
+  assert.equal(next.source, 'inferred')
+  const done = view.rows.find((row) => row.key === 'done')
+  // The finished row really did come off a tool result, so it stays observed.
+  assert.equal(done.source, 'observed')
+})
+
+test('provenance: a queue item is evidence, and so is the call in flight', () => {
+  const queued = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    { type: 'todo/write', time: T0 + 50, data: { todos: [{ status: 'pending', text: '补一个边界测试' }] } },
+  ], { now: T0 + 60 })
+  assert.equal(queued.rows.find((row) => row.key === 'next').source, 'observed')
+
+  const running = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    { type: 'todo/write', time: T0 + 50, data: { todos: [{ status: 'pending', text: '补一个边界测试' }] } },
+    { type: 'tool/call', time: T0 + 100, data: { turn: 1, step: 1, callId: 'c1', name: 'edit', arguments: '{"path":"/a/login.tsx"}' } },
+  ], { now: T0 + 150 })
+  assert.equal(running.rows.find((row) => row.key === 'doing').source, 'observed')
+})
+
+// ---------------------------------------------------------------------------
+// 进度：以「用户提的事」为单位，不是工具调用
+// ---------------------------------------------------------------------------
+
+/** One human request, shaped like the real `user/message` events. */
+function ask(text, at) {
+  return {
+    type: 'user/message',
+    time: at,
+    data: { source: { kind: 'user', form: 'message' }, message: { content: [{ type: 'text', text }] } },
+  }
+}
+
+test('progress: the unit is the request, not the tool call', () => {
+  // The session that prompted this had 43 human messages and 2244 tool calls. The
+  // panel counted calls, so it reported 「第 49 / 50 步」 — a number with no relation
+  // to whether anything the user asked for had been done.
+  const view = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ask('把登录页的报错文案改掉', T0 + 5),
+    ...step('read', { file_path: 'src/login.tsx' }, T0 + 10),
+    ...step('read', { file_path: 'src/auth.ts' }, T0 + 20),
+    ...step('edit', { file_path: 'src/login.tsx' }, T0 + 30),
+    ...step('bash', { command: 'node --test' }, T0 + 40),
+  ], { now: T0 + 50 })
+
+  // 五步工具调用，但只有一件用户请求。
+  assert.equal(view.progress.steps, 4)
+  assert.equal(view.position.unit, 'request')
+  assert.equal(view.position.total, 1)
+  assert.equal(view.request.n, 1)
+  assert.match(view.summary, /你提的第 1 件/)
+})
+
+test('progress: a change is only trustworthy once something ran after it', () => {
+  // 先跑后改：那次跑没有碰到改动，不能算验证过。这是「改完能不能信」的分界，
+  // 也是面板唯一有资格说「好了」的依据。
+  const ranThenEdited = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ask('换个校验方式', T0 + 5),
+    ...step('bash', { command: 'node --test' }, T0 + 10),
+    ...step('edit', { file_path: 'src/auth.ts' }, T0 + 20),
+  ], { now: T0 + 30 })
+  assert.equal(ranThenEdited.request.ran, true)
+  assert.equal(ranThenEdited.request.verified, false)
+  // 「改之前跑过一次」和「压根没跑过」对读者是同一件事：这次改动没有证据。
+  assert.equal(ranThenEdited.request.status, 'changed-unverified')
+  assert.equal(ranThenEdited.request.open, '跑一遍验证')
+  assert.match(ranThenEdited.request.verdict, /还没跑过验证/)
+
+  // 改完再跑，跑过了：这才叫验证过。
+  const editedThenRan = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ask('换个校验方式', T0 + 5),
+    ...step('edit', { file_path: 'src/auth.ts' }, T0 + 10),
+    ...step('bash', { command: 'node --test' }, T0 + 20),
+  ], { now: T0 + 30 })
+  assert.equal(editedThenRan.request.verified, true)
+  assert.equal(editedThenRan.request.status, 'verified')
+  assert.equal(editedThenRan.request.open, '')
+  assert.match(editedThenRan.request.verdict, /跑过验证/)
+})
+
+test('progress: a failed run after the edit is a block, not a finish', () => {
+  const events = [
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ask('把守卫补上', T0 + 5),
+    ...step('edit', { file_path: 'src/guard.ts' }, T0 + 10),
+    { type: 'tool/call', time: T0 + 20, data: { turn: 1, step: 1, callId: 'c-bad', name: 'bash', arguments: JSON.stringify({ command: 'node --test' }) } },
+    {
+      type: 'tool/result',
+      time: T0 + 25,
+      data: {
+        turn: 1,
+        step: 1,
+        message: { isError: true, content: [{ type: 'text', text: 'Error: 1 test failed' }] },
+        error: { name: 'ProcessError', code: 'EXIT_1' },
+      },
+    },
+  ]
+  const view = replay(events, { now: T0 + 30 })
+  assert.equal(view.request.ran, true)
+  assert.equal(view.request.verified, false)
+  assert.equal(view.request.status, 'blocked')
+  assert.equal(view.request.open, '把没过的验证修好')
+  assert.match(view.request.verdict, /卡住了/)
+  // 状态行必须说出「还差什么」，不能只说「卡住了」。
+  assert.match(view.summary, /还差|碰了/)
+})
+
+test('progress: a request that only looked around says so instead of pretending', () => {
+  const view = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ask('先看看这个仓库是干什么的', T0 + 5),
+    ...step('read', { file_path: 'README.md' }, T0 + 10),
+    ...step('read', { file_path: 'package.json' }, T0 + 20),
+  ], { now: T0 + 30 })
+  assert.equal(view.request.changed, false)
+  assert.equal(view.request.status, 'looking')
+  assert.equal(view.request.open, '先找到要改的地方')
+  assert.match(view.request.verdict, /还在看/)
+})
+
+test('progress: the user speaking again closes the previous request', () => {
+  const state = createLensState('session-request-chain')
+  const events = [
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ask('先改文案', T0 + 5),
+    ...step('edit', { file_path: 'src/copy.ts' }, T0 + 10),
+    ask('再改一下图标', T0 + 20),
+  ]
+  for (const event of events) applySessionEvent(state, event, event.time)
+  assert.equal(state.requestCount, 2)
+  assert.equal(state.request.n, 2)
+  // 上一件有实活，所以它算做完了；说清楚是被下一件顶掉的，还是主动收的。
+  const view = buildView(state, T0 + 30, {})
+  assert.equal(view.position.total, 2)
+  assert.equal(view.position.index, 2)
+})
+
+test('progress: the checklist no longer stands in for progress', () => {
+  // 清单是计划，不是进度。43 件请求里可能只写过一次清单；按清单算进度，
+  // 读者会以为「还剩 7 件」说明事情快好了，而实际上可能压根没开始。
+  const view = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ask('做插件', T0 + 5),
+    { type: 'todo/write', time: T0 + 10, data: { todos: [
+      { status: 'in_progress', text: '搭好结构' },
+      { status: 'pending', text: '写文档' },
+    ] } },
+  ], { now: T0 + 20 })
+  assert.equal(view.position.unit, 'request')
+  assert.equal(view.position.total, 1)
+  // 清单仍然照实报，只是它不再冒充「第几步」。
+  assert.equal(view.progress.todos.total, 2)
+})
+
+test('status: 等你回话 is its own state, not another kind of running', () => {
+  // 在跑和在等人是两件事：前者你可以走开，后者你不看它就永远停在那儿。
+  // 灯色不新增（仍是青），但状态词必须换成「等你回话」。
+  const asking = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    { type: 'tool/call', time: T0 + 100, data: { turn: 1, step: 1, callId: 'c1', name: 'ask_user_question', arguments: '{}' } },
+  ], { now: T0 + 200 })
+  assert.equal(asking.status, 'waiting')
+  assert.equal(asking.light, 'cyan')
+
+  const working = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    { type: 'tool/call', time: T0 + 100, data: { turn: 1, step: 1, callId: 'c1', name: 'read', arguments: '{"file_path":"/app/src/a.ts"}' } },
+  ], { now: T0 + 200 })
+  assert.equal(working.status, 'working')
+
+  const failed = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    { type: 'tool/call', time: T0 + 100, data: { turn: 1, step: 1, callId: 'c1', name: 'edit', arguments: '{"file_path":"/app/src/a.ts"}' } },
+    { type: 'tool/result', time: T0 + 200, data: { turn: 1, step: 1, message: { isError: true }, error: { name: 'FS_NOT_OBSERVED', code: 'FS_NOT_OBSERVED' } } },
+  ], { now: T0 + 300 })
+  assert.equal(failed.status, 'failed')
+
+  const done = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    { type: 'turn/end', time: T0 + 100, data: { turn: 1, status: 'completed' } },
+  ], { now: T0 + 200 })
+  assert.equal(done.status, 'done')
+})
+
+test('status: the header gets a duration it can count up, not a frozen string', () => {
+  // 客户端拿 elapsedMs + updatedAt 自己往前推，所以两帧之间数字也在走。
+  const view = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    { type: 'tool/call', time: T0 + 90_000, data: { turn: 1, step: 1, callId: 'c1', name: 'read', arguments: '{"file_path":"/app/src/a.ts"}' } },
+  ], { now: T0 + 120_000 })
+  assert.equal(view.running, true)
+  assert.equal(typeof view.elapsedMs, 'number')
+  assert.ok(view.elapsedMs >= 120_000, `elapsedMs should reach the frame time, got ${view.elapsedMs}`)
+})
+
+// ---------------------------------------------------------------------------
+// 总结：它自己说的话，不是从工具调用推出来的账
+// ---------------------------------------------------------------------------
+
+/** One assistant turn that says `text` out loud. */
+function says(text, at, step = 1) {
+  return {
+    type: 'assistant/message',
+    time: at,
+    data: { turn: 1, step, message: { content: [{ type: 'text', text }] } },
+  }
+}
+
+/**
+ * A read step in flight. A session that only ever sent an assistant message has
+ * no finished work, and then 已完成 is deliberately not rendered at all — the
+ * row under test needs one real step behind it.
+ */
+function readStep(at, step) {
+  return [
+    {
+      type: 'tool/call', time: at,
+      data: { turn: 1, step, callId: `r${step}`, name: 'read', arguments: '{"file_path":"/app/src/a.ts"}' },
+    },
+    {
+      type: 'tool/result', time: at + 1,
+      data: { turn: 1, step, callId: `r${step}`, message: { content: [{ type: 'text', text: 'ok' }] } },
+    },
+  ]
+}
+
+test('summary: 已完成 quotes what it said it achieved, not the file it touched', () => {
+  // 工具调用只会说「翻了类型定义」；「API 调研已经完成」这句只存在于它自己的正文里，
+  // 而读者问的正是后者。工具那句降到展开详情里当证据。
+  const view = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ask('帮我调研', T0 + 5),
+    { type: 'tool/call', time: T0 + 10, data: { turn: 1, step: 1, callId: 'c1', name: 'read', arguments: '{"file_path":"/app/src/types.ts"}' } },
+    { type: 'tool/result', time: T0 + 20, data: { turn: 1, step: 1, callId: 'c1', message: { content: [{ type: 'text', text: 'ok' }] } } },
+    says('API 调研已经完成。', T0 + 25),
+  ], { now: T0 + 30 })
+  const done = view.rows.find((row) => row.key === 'done')
+  assert.equal(done.source, 'reported')
+  assert.match(done.text, /API 调研已经完成/)
+  assert.doesNotMatch(done.text, /类型定义/)
+  // 证据没丢，只是挪到了展开里。
+  assert.match(done.details.saw, /类型定义/)
+})
+
+test('summary: 还剩 several problems is progress, not a shrug', () => {
+  const view = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ask('修一下', T0 + 5),
+    ...readStep(T0 + 10, 1),
+    says('还剩两个问题：双重引号已经修好，但下一步仍固定在 10 种取值上。', T0 + 25),
+  ], { now: T0 + 30 })
+  const done = view.rows.find((row) => row.key === 'done')
+  assert.equal(done.source, 'reported')
+  assert.match(done.text, /还剩两个问题/)
+})
+
+test('summary: a plan never ends on the colon that introduced a list', () => {
+  // 「接下来重新加载并检查：」原文后面跟着清单；直接贴进总结就成了
+  // 「接下来重新加载并检查：。」—— 一个停在不该停的地方的句子。
+  const view = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ask('看看效果', T0 + 5),
+    ...readStep(T0 + 10, 1),
+    says('接下来重新加载并到真实页面上检查：', T0 + 25),
+  ], { now: T0 + 30 })
+  assert.doesNotMatch(view.summary, /[：:]。/)
+  assert.match(view.summary, /接下来重新加载并到真实页面上检查。$/)
+  for (const row of view.rows) assert.doesNotMatch(row.text, /[：:]。/)
+})
+
+test('summary: a plan the 正在做 row already quotes is not printed twice', () => {
+  // 同一个计划被两行各念一遍是最吵的噪音：那是同一件事，不是进展。
+  const view = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ask('看看效果', T0 + 5),
+    ...readStep(T0 + 10, 1),
+    says('接下来重新加载并到真实页面上检查：', T0 + 25),
+  ], { now: T0 + 30 })
+  const doing = view.rows.find((row) => row.key === 'doing')
+  const next = view.rows.find((row) => row.key === 'next')
+  assert.match(doing.text, /接下来重新加载并到真实页面上检查/)
+  assert.doesNotMatch(next.text, /接下来重新加载并到真实页面上检查/)
+})
+
+test('summary: the plan it wrote is handed to the panel as a checklist', () => {
+  // 用户要的「有什么计划」就是这几条，原样给出去，不概括。
+  const view = replay([
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ask('把剩下的做完', T0 + 5),
+    ...readStep(T0 + 10, 1),
+    says('接下来这几步：\n1. 补上回归测试\n2. 更新 README 文档\n3. 重装插件验证一遍', T0 + 25),
+  ], { now: T0 + 30 })
+  assert.deepEqual(view.checklist, ['补上回归测试', '更新 README 文档', '重装插件验证一遍'])
+})
+
+test('summary: a stale plan is dropped, not quoted as the current one', () => {
+  // 三百步以前写下的清单是另一件活。引用它等于替它许一个它早忘了的诺。
+  const events = [
+    { type: 'turn/start', time: T0, data: { turn: 1 } },
+    ask('做插件', T0 + 5),
+    ...readStep(T0 + 8, 1),
+    says('接下来补回归测试。\n1. 补上回归测试\n2. 更新 README 文档', T0 + 25),
+  ]
+  for (let step = 2; step <= 200; step += 1) {
+    events.push(...readStep(T0 + 25 + step, step))
+  }
+  const view = replay(events, { now: T0 + 400 })
+  assert.deepEqual(view.checklist, [])
+  const next = view.rows.find((row) => row.key === 'next')
+  assert.notEqual(next.source, 'reported')
 })

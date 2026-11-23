@@ -63,6 +63,15 @@ const WORD = {
   stopCta: '先停一下',
   lost: '断线了，正在重连…',
   light: { blue: '在读或搜', yellow: '在写或改', cyan: '在跑或测', green: '完成', red: '出错或卡住' },
+  logTitle: '战况', logExpand: '展开全部', logDropped: '更早的 {n} 条已经滚出窗口。',
+  logMore: '还有 {n} 条更早的。',
+  treeTitle: '派出去的队', treeIdle: '派出去的队现在都没在动。',
+  treeSteps: '走了 {n} 步', treeSub: '它还带着 {n} 支小队', treeFailed: '这一支出过错',
+  logKind: { you: '你', step: '做了', fail: '出岔子', say: '它说', plan: '它打算', turn: '分界' },
+  todoTag: { active: '正在做', done: '做完了', open: '还没动', dropped: '不做了' },
+  chrTitle: '从开头到现在', chrSummary: '{done} 件办完 · {blocked} 件没过验证 · {open} 件还开着',
+  chrMore: '还有 {n} 件更早的', chrLive: '正在办', chrSaid: '它最后说', chrSteps: '{n} 步',
+  chrUnseen: '这一场一共 {total} 件，从这里能看到第 {from} 件之后的。',
 }
 
 function detailHtml(details) {
@@ -169,8 +178,18 @@ function ledgerHtml(view) {
   if (progress == null) return ''
   const items = Array.isArray(progress.items) ? progress.items : []
   const todos = progress.todos
-  if (items.length === 0 && (todos === undefined || todos == null)) return ''
+  const plan = Array.isArray(view.checklist) ? view.checklist : []
+  const states = Array.isArray(view.checklistState?.items) ? view.checklistState.items : []
+  const aligned = view.checklistState != null && states.length === plan.length && view.checklistState.fresh !== false
   const todosHtml = todos == null ? '' : `<span class="skl-ledger-todos">清单 ${todos.done} / ${todos.total}</span>`
+  const stateTag = (status) => (status === '' || status === 'open'
+    ? ''
+    : `<span class="skl-todo-tag">${WORD.todoTag[status]}</span>`)
+  const planHtml = plan.length === 0
+    ? ''
+    : `<div class="skl-plan"><div class="skl-plan-head">接下来这些</div>${
+      plan.map((item, i) => `<div class="skl-plan-item" data-todo="${aligned ? states[i].status : ''}">${
+        escape(item)}${stateTag(aligned ? states[i].status : '')}</div>`).join('')}</div>`
   const summaryHtml = typeof view.summary === 'string' && view.summary !== ''
     ? `<div class="skl-ledger-summary">${escape(view.summary)}</div>`
     : ''
@@ -183,12 +202,102 @@ function ledgerHtml(view) {
     <span class="skl-ledger-phase">${escape(progress.phase)}</span>
     ${todosHtml}
   </div>
+  ${planHtml}
   ${summaryHtml}
   ${itemsHtml}
 </div>`
 }
 
-function page(view, { openRow = '' } = {}) {
+/** 从开头到现在：一件事一章。与真面板同构。 */
+function chronicleHtml(view, openN = null) {
+  const data = view.chronicle
+  const chapters = Array.isArray(data?.chapters) ? data.chapters : []
+  if (chapters.length === 0) return ''
+  const tally = data.tally ?? { finished: 0, blocked: 0, open: 0 }
+  const took = (ms) => {
+    const total = Math.max(0, Math.round(Number(ms) / 1000))
+    if (!Number.isFinite(total) || total < 60) return '不到 1 分钟'
+    const minutes = Math.floor(total / 60)
+    return minutes < 60 ? `${minutes} 分钟` : `${Math.floor(minutes / 60)} 小时`
+  }
+  const items = chapters.map((chapter) => `<li class="skl-chapter" data-live="${chapter.live}" data-status="${escape(chapter.status)}" data-beats="${chapter.happened.length > 0 ? 1 : 0}">
+  <div class="skl-chapter-head">
+    <span class="skl-chapter-n">${chapter.n}</span>
+    <span class="skl-chapter-ask">${escape(chapter.ask)}</span>
+    ${chapter.live ? `<span class="skl-chapter-flag">${WORD.chrLive}</span>` : ''}
+  </div>
+  <div class="skl-chapter-outcome">${escape(chapter.outcome)}</div>
+  ${chapter.ending === '' ? '' : `<div class="skl-chapter-ending">${escape(chapter.ending)}</div>`}
+  ${chapter.lastSaid === '' ? '' : `<div class="skl-chapter-said">${WORD.chrSaid}：${escape(chapter.lastSaid)}</div>`}
+  <div class="skl-chapter-meta">${[
+    took(chapter.tookMs),
+    WORD.chrSteps.replace('{n}', chapter.steps),
+    chapter.files.join('、'),
+  ].filter(Boolean).join(' · ')}</div>
+  ${openN === chapter.n && chapter.happened.length > 0
+    ? `<ul class="skl-chapter-beats">${chapter.happened.map((beat) =>
+      `<li class="skl-chapter-beat" data-kind="${beat.kind}">${escape(beat.text)}</li>`).join('')}</ul>`
+    : ''}
+</li>`).join('')
+  return `<div class="skl-chr">
+  <div class="skl-chr-head"><span class="skl-chr-title">${WORD.chrTitle}</span><span class="skl-chr-total">${data.total} 件</span></div>
+  <div class="skl-chr-summary">${WORD.chrSummary.replace('{done}', tally.finished).replace('{blocked}', tally.blocked).replace('{open}', tally.open)}</div>
+  ${(data.unseen ?? 0) > 0 ? `<div class="skl-chr-more">${WORD.chrUnseen.replace('{total}', data.total).replace('{from}', chapters[0].n)}</div>` : ''}
+  <ul class="skl-chr-list">${items}</ul>
+  ${data.dropped > 0 ? `<div class="skl-chr-more">${WORD.chrMore.replace('{n}', data.dropped)}</div>` : ''}
+</div>`
+}
+
+/** 派出去的队：一行一支，措辞与主面板同源。 */
+function treeHtml(view) {
+  const squads = Array.isArray(view.tree) ? view.tree : []
+  if (squads.length === 0) return ''
+  const anyRunning = squads.some((squad) => squad.running === true)
+  const rows = squads.map((squad) => {
+    const bits = []
+    if (squad.failed) bits.push(WORD.treeFailed)
+    if (squad.steps > 0) bits.push(WORD.treeSteps.replace('{n}', squad.steps))
+    if (squad.grandchildren > 0) bits.push(WORD.treeSub.replace('{n}', squad.grandchildren))
+    return `<div class="skl-squad" data-light="${squad.light}" data-running="${squad.running}" data-failed="${squad.failed}">
+  <span class="skl-squad-dot"></span>
+  <span class="skl-squad-body">
+    ${squad.mission ? `<span class="skl-squad-mission">${escape(squad.mission)}</span>` : ''}
+    <span class="skl-squad-doing">${escape(squad.doing || '等它动起来…')}</span>
+    ${bits.length === 0 ? '' : `<span class="skl-squad-meta">${escape(bits.join(' · '))}</span>`}
+  </span>
+</div>`
+  }).join('')
+  return `<div class="skl-tree">
+  <div class="skl-tree-head"><span class="skl-tree-title">${WORD.treeTitle}</span><span class="skl-tree-count">${squads.length} 支</span></div>
+  ${anyRunning ? '' : `<div class="skl-squad-meta">${WORD.treeIdle}</div>`}
+  ${rows}
+</div>`
+}
+
+/** 战况：默认收起成最后 4 条，展开 12 条，与真面板同构。 */
+function logHtml(view, open = false) {
+  const lines = Array.isArray(view.timeline) ? view.timeline : []
+  if (lines.length === 0) return ''
+  const limit = open ? 12 : 4
+  const shown = lines.slice(-limit).slice().reverse()
+  const dropped = typeof view.timelineDropped === 'number' ? view.timelineDropped : 0
+  const hidden = lines.length - Math.min(lines.length, limit) + dropped
+  const head = `<div class="skl-log-head"><span class="skl-log-title">${WORD.logTitle}</span>${
+    lines.length <= 4 && dropped === 0
+      ? ''
+      : `<button type="button" class="skl-log-toggle">${open ? '收起' : WORD.logExpand}</button>`}</div>`
+  const list = `<ul class="skl-log-list">${shown.map((line) => `<li class="skl-log-item" data-kind="${line.kind}" data-src="${line.source}">${
+    `<span class="skl-log-kind">${WORD.logKind[line.kind] ?? ''}</span>`
+  }<span class="skl-log-text">${escape(line.text)}${
+    (line.count ?? 1) > 1 ? `<span class="skl-log-count">×${line.count}</span>` : ''
+  }</span><span class="skl-log-time">刚刚</span></li>`).join('')}</ul>`
+  const note = hidden > 0
+    ? `<div class="skl-log-note">${(open ? WORD.logDropped : WORD.logMore).replace('{n}', hidden)}</div>`
+    : ''
+  return `<div class="skl-log">${head}${list}${note}</div>`
+}
+
+function page(view, { openRow = '', openLog = false } = {}) {
   const position = view.position ?? { index: 1, total: 2 }
   const ratio = Math.max(0, Math.min(1, Number(position.index) / Math.max(1, Number(position.total))))
   const rows = (view.rows ?? []).map((row) =>
@@ -231,7 +340,10 @@ ${extractCss()}
   <div class="skl-progress"><i style="width:${Math.round(ratio * 100)}%"></i></div>
   ${pulseHtml(view)}
   <div class="skl-rows">${rows}</div>
+  ${treeHtml(view)}
   ${ledgerHtml(view)}
+  ${chronicleHtml(view, openLog === true ? 1 : null)}
+  ${logHtml(view, openLog)}
   ${view.cancelNote == null || !view.cancelNote.text ? '' : `<div class="skl-cancelled">${escape(view.cancelNote.text)}</div>`}
   ${view.idle == null ? '' : `<div class="skl-idle">${escape(view.idle.text)}</div>`}
   ${doorHtml('ask', WORD.askTitle, WORD.askNote, '这一步为什么这么做？它是不是卡住了？', WORD.askCta)}
@@ -253,7 +365,7 @@ const view = process.argv[2] === undefined
 const collapsed = join(root, 'test', 'preview.html')
 writeFileSync(collapsed, page(view), 'utf8')
 const expanded = join(root, 'test', 'preview-expanded.html')
-writeFileSync(expanded, page(view, { openRow: '*' }), 'utf8')
+writeFileSync(expanded, page(view, { openRow: '*', openLog: true }), 'utf8')
 
 console.log('wrote', collapsed)
 console.log('wrote', expanded)
