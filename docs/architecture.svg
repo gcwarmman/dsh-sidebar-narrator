@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="940" viewBox="0 0 1180 940" font-family="ui-sans-serif, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
+<rect width="1180" height="940" fill="#0f1216"/>
+<defs>
+<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2a303a"/></marker>
+<marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#5b8fd0"/></marker>
+<marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#4fa87a"/></marker>
+<marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#cf6b6b"/></marker>
+<marker id="aha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#c9a26a"/></marker>
+</defs>
+<text x="40" y="52" fill="#e6e9ee" font-size="22" font-weight="600" text-anchor="start">dsh-sidekick-lens · 架构</text>
+<text x="40" y="76" fill="#9aa3af" font-size="13" font-weight="400" text-anchor="start">纯规则折叠：实时监测零模型调用；只有按「问」才调一次模型</text>
+<rect x="40" y="104" width="1100" height="210" rx="10" fill="#171b21" stroke="#2a303a" stroke-width="1"/>
+<text x="60" y="132" fill="#e6e9ee" font-size="15" font-weight="600" text-anchor="start">① DeepSeek Harness 宿主</text>
+<text x="300" y="132" fill="#6b7480" font-size="12" font-weight="400" text-anchor="start">插件订阅这些事件（{ global: true }，含子会话）</text>
+<rect x="60" y="152" width="470" height="34" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="74" y="174" fill="#5b8fd0" font-size="12.5" font-weight="400" text-anchor="start">session/event</text>
+<text x="240" y="174" fill="#6b7480" font-size="11.5" font-weight="400" text-anchor="start">turn / step / tool / 用户消息 / todo</text>
+<rect x="60" y="192" width="470" height="34" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="74" y="214" fill="#5b8fd0" font-size="12.5" font-weight="400" text-anchor="start">agent/status</text>
+<text x="240" y="214" fill="#6b7480" font-size="11.5" font-weight="400" text-anchor="start">running / idle</text>
+<rect x="60" y="232" width="470" height="34" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="74" y="254" fill="#5b8fd0" font-size="12.5" font-weight="400" text-anchor="start">agent/error</text>
+<text x="240" y="254" fill="#6b7480" font-size="11.5" font-weight="400" text-anchor="start">错误</text>
+<rect x="60" y="272" width="470" height="34" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="74" y="294" fill="#5b8fd0" font-size="12.5" font-weight="400" text-anchor="start">agent/assistant-stream</text>
+<text x="240" y="294" fill="#6b7480" font-size="11.5" font-weight="400" text-anchor="start">流式 token（正文 + 思维链）</text>
+<rect x="560" y="152" width="250" height="140" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="576" y="174" fill="#3f9c94" font-size="12.5" font-weight="400" text-anchor="start">子会话（子 agent）</text>
+<text x="576" y="196" fill="#6b7480" font-size="11" font-weight="400" text-anchor="start">自己也是一个完整会话</text>
+<text x="576" y="214" fill="#6b7480" font-size="11" font-weight="400" text-anchor="start">父 id 来自</text>
+<text x="576" y="231" fill="#c9a26a" font-size="11" font-weight="400" text-anchor="start">session.header</text>
+<text x="576" y="248" fill="#c9a26a" font-size="11" font-weight="400" text-anchor="start">  .parentSession</text>
+<text x="576" y="274" fill="#9aa3af" font-size="11" font-weight="400" text-anchor="start">→ buildTree() 聚合成小队</text>
+<rect x="840" y="152" width="280" height="140" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="856" y="174" fill="#c9a26a" font-size="12.5" font-weight="400" text-anchor="start">llm · 只读通道</text>
+<text x="856" y="196" fill="#9aa3af" font-size="11" font-weight="400" text-anchor="start">带 sessionId？</text>
+<text x="1000" y="196" fill="#4fa87a" font-size="11" font-weight="400" text-anchor="start">否 — 完全隔离</text>
+<text x="856" y="214" fill="#9aa3af" font-size="11" font-weight="400" text-anchor="start">带 tools？</text>
+<text x="1000" y="214" fill="#4fa87a" font-size="11" font-weight="400" text-anchor="start">否 — 不碰主 agent</text>
+<text x="856" y="240" fill="#6b7480" font-size="11" font-weight="400" text-anchor="start">maxTokens: 320</text>
+<text x="856" y="262" fill="#6b7480" font-size="11" font-weight="400" text-anchor="start">只在 /ask 里出现</text>
+<path d="M 295 314 L 295 352" stroke="#5b8fd0" stroke-width="2" marker-end="url(#ahb)"/>
+<text x="305" y="340" fill="#5b8fd0" font-size="11" font-weight="400" text-anchor="start">事件流</text>
+<rect x="40" y="352" width="520" height="254" rx="10" fill="#171b21" stroke="#5b8fd0" stroke-width="1"/>
+<text x="60" y="380" fill="#e6e9ee" font-size="15" font-weight="600" text-anchor="start">② lib/index.js — 宿主半</text>
+<text x="60" y="402" fill="#6b7480" font-size="11.5" font-weight="400" text-anchor="start">唯一有 I/O 的一层：订阅事件、维护状态、开 HTTP 路由</text>
+<rect x="60" y="416" width="480" height="40" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="76" y="441" fill="#e6e9ee" font-size="12" font-weight="400" text-anchor="start">applySessionEvent()   事件 → state</text>
+<rect x="60" y="462" width="480" height="40" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="76" y="487" fill="#e6e9ee" font-size="12" font-weight="400" text-anchor="start">bucketFor(id)   sessionId → { state, children }</text>
+<rect x="60" y="508" width="480" height="40" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="76" y="533" fill="#5b8fd0" font-size="12" font-weight="500" text-anchor="start">buildView(state)  →  一帧 view</text>
+<rect x="60" y="554" width="480" height="40" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="76" y="579" fill="#9aa3af" font-size="12" font-weight="400" text-anchor="start">publish() · shouldPush() 节流 350ms + SSE</text>
+<rect x="600" y="352" width="540" height="254" rx="10" fill="#12161b" stroke="#3f9c94" stroke-width="1"/>
+<text x="620" y="380" fill="#e6e9ee" font-size="15" font-weight="600" text-anchor="start">③ lib/narrative.js — 纯语言层</text>
+<text x="620" y="402" fill="#6b7480" font-size="11.5" font-weight="400" text-anchor="start">无 I/O、无 ctx、无定时器 —— 所以 127 项测试能直接跑它</text>
+<text x="632" y="432" fill="#5b8fd0" font-size="11.5" font-weight="500" text-anchor="start">buildView</text>
+<text x="800" y="432" fill="#6b7480" font-size="11" font-weight="400" text-anchor="start">三行 + 灯 + 位置</text>
+<text x="632" y="454" fill="#c9a26a" font-size="11.5" font-weight="500" text-anchor="start">  anchorRows()</text>
+<text x="800" y="454" fill="#6b7480" font-size="11" font-weight="400" text-anchor="start">给三行挂回所属请求</text>
+<text x="632" y="476" fill="#3f9c94" font-size="11.5" font-weight="500" text-anchor="start">buildChronicle</text>
+<text x="800" y="476" fill="#6b7480" font-size="11" font-weight="400" text-anchor="start">总览：一件事一章</text>
+<text x="632" y="498" fill="#9aa3af" font-size="11.5" font-weight="500" text-anchor="start">buildTimeline</text>
+<text x="800" y="498" fill="#6b7480" font-size="11" font-weight="400" text-anchor="start">战况：有序日志 ×N</text>
+<text x="632" y="520" fill="#3f9c94" font-size="11.5" font-weight="500" text-anchor="start">buildTree</text>
+<text x="800" y="520" fill="#6b7480" font-size="11" font-weight="400" text-anchor="start">派出去的队</text>
+<text x="632" y="542" fill="#c9a26a" font-size="11.5" font-weight="500" text-anchor="start">buildReceipts</text>
+<text x="800" y="542" fill="#6b7480" font-size="11" font-weight="400" text-anchor="start">提醒：发了 ≠ 读了</text>
+<text x="632" y="564" fill="#9aa3af" font-size="11.5" font-weight="500" text-anchor="start">buildChecklist</text>
+<text x="800" y="564" fill="#6b7480" font-size="11" font-weight="400" text-anchor="start">清单状态对位</text>
+<text x="632" y="586" fill="#c9a26a" font-size="11.5" font-weight="500" text-anchor="start">buildDigest</text>
+<text x="800" y="586" fill="#6b7480" font-size="11" font-weight="400" text-anchor="start">喂给「问」的摘要</text>
+<rect x="40" y="640" width="520" height="150" rx="10" fill="#171b21" stroke="#2a303a" stroke-width="1"/>
+<text x="60" y="668" fill="#e6e9ee" font-size="15" font-weight="600" text-anchor="start">④ 五条 HTTP 路由</text>
+<text x="60" y="690" fill="#6b7480" font-size="11.5" font-weight="400" text-anchor="start">同源守卫 isCrossSite()：外站 Origin / cross-site 一律拒</text>
+<rect x="60" y="704" width="96" height="64" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="108" y="726" fill="#4fa87a" font-size="11.5" font-weight="500" text-anchor="middle">/stream</text>
+<text x="108" y="746" fill="#6b7480" font-size="9" font-weight="400" text-anchor="middle">SSE 推帧</text>
+<rect x="160" y="704" width="96" height="64" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="208" y="726" fill="#4fa87a" font-size="11.5" font-weight="500" text-anchor="middle">/view</text>
+<text x="208" y="746" fill="#6b7480" font-size="9" font-weight="400" text-anchor="middle">一次性快照</text>
+<rect x="260" y="704" width="96" height="64" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="308" y="726" fill="#c9a26a" font-size="11.5" font-weight="500" text-anchor="middle">/ask</text>
+<text x="308" y="746" fill="#6b7480" font-size="9" font-weight="400" text-anchor="middle">调模型（唯一花钱）</text>
+<rect x="360" y="704" width="96" height="64" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="408" y="726" fill="#5b8fd0" font-size="11.5" font-weight="500" text-anchor="middle">/steer</text>
+<text x="408" y="746" fill="#6b7480" font-size="9" font-weight="400" text-anchor="middle">steer 不打断</text>
+<rect x="460" y="704" width="96" height="64" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="508" y="726" fill="#cf6b6b" font-size="11.5" font-weight="500" text-anchor="middle">/stop</text>
+<text x="508" y="746" fill="#6b7480" font-size="9" font-weight="400" text-anchor="middle">cancel 说清保留</text>
+<rect x="600" y="640" width="540" height="150" rx="10" fill="#171b21" stroke="#2a303a" stroke-width="1"/>
+<text x="620" y="668" fill="#e6e9ee" font-size="15" font-weight="600" text-anchor="start">⑤ lib/client.js — 客户端半</text>
+<text x="620" y="690" fill="#6b7480" font-size="11.5" font-weight="400" text-anchor="start">原生右侧栏 tab（sidebarRightTabs + sidebar.right.pane.tab）</text>
+<rect x="620" y="704" width="80" height="34" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="660" y="726" fill="#5b8fd0" font-size="12" font-weight="500" text-anchor="middle">三行</text>
+<rect x="706" y="704" width="80" height="34" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="746" y="726" fill="#9aa3af" font-size="12" font-weight="500" text-anchor="middle">战况</text>
+<rect x="792" y="704" width="80" height="34" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="832" y="726" fill="#3f9c94" font-size="12" font-weight="500" text-anchor="middle">部队</text>
+<rect x="878" y="704" width="80" height="34" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="918" y="726" fill="#9aa3af" font-size="12" font-weight="500" text-anchor="middle">清单</text>
+<rect x="964" y="704" width="80" height="34" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="1004" y="726" fill="#c9a26a" font-size="12" font-weight="500" text-anchor="middle">回执</text>
+<rect x="1050" y="704" width="80" height="34" rx="10" fill="#12161b" stroke="#2a303a" stroke-width="1"/>
+<text x="1090" y="726" fill="#5b8fd0" font-size="12" font-weight="500" text-anchor="middle">三张门</text>
+<text x="620" y="764" fill="#6b7480" font-size="11" font-weight="400" text-anchor="start">EventSource 读 /stream；按钮 fetch 四条门；从不碰会话控制器</text>
+<line x1="560" y1="470" x2="600" y2="470" stroke="#5b8fd0" stroke-width="2" marker-end="url(#ahb)"/>
+<text x="580" y="462" fill="#5b8fd0" font-size="10" font-weight="500" text-anchor="middle">调</text>
+<line x1="300" y1="606" x2="300" y2="640" stroke="#4fa87a" stroke-width="1.6" marker-end="url(#ahg)"/>
+<text x="310" y="630" fill="#4fa87a" font-size="10" font-weight="400" text-anchor="start">view</text>
+<line x1="400" y1="640" x2="400" y2="606" stroke="#5b8fd0" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#ahb)"/>
+<text x="410" y="630" fill="#5b8fd0" font-size="10" font-weight="400" text-anchor="start">请求</text>
+<line x1="600" y1="712" x2="560" y2="712" stroke="#5b8fd0" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#ahb)"/>
+<line x1="560" y1="744" x2="600" y2="744" stroke="#4fa87a" stroke-width="2" marker-end="url(#ahg)"/>
+<rect x="40" y="810" width="1100" height="96" rx="10" fill="#12161b" stroke="#4fa87a" stroke-width="1"/>
+<text x="60" y="836" fill="#4fa87a" font-size="14" font-weight="600" text-anchor="start">token 账</text>
+<text x="60" y="862" fill="#9aa3af" font-size="11.5" font-weight="400" text-anchor="start">实时监测 / 三行 / 战况 / 部队 / 回执</text>
+<text x="60" y="886" fill="#4fa87a" font-size="13" font-weight="600" text-anchor="start">0 token</text>
+<text x="420" y="862" fill="#9aa3af" font-size="11.5" font-weight="400" text-anchor="start">按「问」一次（digest≈1.0k + 输出上限）</text>
+<text x="420" y="886" fill="#c9a26a" font-size="13" font-weight="600" text-anchor="start">≈1.4k token</text>
+<text x="780" y="862" fill="#9aa3af" font-size="11.5" font-weight="400" text-anchor="start">不按「问」</text>
+<text x="780" y="886" fill="#4fa87a" font-size="13" font-weight="600" text-anchor="start">0 token</text>
+<text x="40" y="932" fill="#6b7480" font-size="11" font-weight="400" text-anchor="start">203 项测试 · 176–460px 零横向溢出 · v0.2.0</text>
+</svg>

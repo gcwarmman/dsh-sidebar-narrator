@@ -1,6 +1,6 @@
 {
   "name": "dsh-sidekick-lens",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A right-sidebar narrator for DeepSeek Harness: three plain-language lines on what the agent finished, is doing, and will do next — plus a read-only explain channel, a non-interrupting steer, and a stop that says what it kept.",
   "type": "module",
   "license": "MIT",
@@ -39,6 +39,7 @@
     "lib/index.js",
     "lib/client.js",
     "lib/narrative.js",
+    "lib/steward.js",
     "locale/zh.json",
     "locale/en.json",
     "icon.svg",
@@ -47,7 +48,8 @@
     "LICENSE",
     "screenshots.json",
     "docs/panel.png",
-    "docs/icon.png"
+    "docs/icon.png",
+    "docs/architecture.svg"
   ],
   "dsh": {
     "bundle": {
@@ -86,6 +88,6 @@
     }
   },
   "scripts": {
-    "test": "node test/narrative.test.mjs && node test/anchor.test.mjs && node test/timeline.test.mjs && node test/tree.test.mjs && node test/receipt.test.mjs && node test/digest.test.mjs && node test/chronicle.test.mjs && node test/guard.test.mjs"
+    "test": "node test/narrative.test.mjs && node test/anchor.test.mjs && node test/timeline.test.mjs && node test/tree.test.mjs && node test/receipt.test.mjs && node test/digest.test.mjs && node test/chronicle.test.mjs && node test/steward.test.mjs && node test/guard.test.mjs"
   }
 }
